@@ -111,6 +111,16 @@ export class NameComposer {
     this.jung = null
   }
 
+  /**
+   * 값을 통째로 갈아끼웁니다. 키보드로 직접 친 글자는 브라우저가 이미
+   * 조합을 끝내 놓았으므로, 조합 상태 없이 확정된 글자로만 둡니다.
+   */
+  setText(value: string): void {
+    this.committed = value.slice(0, this.maxLength)
+    this.cho = null
+    this.jung = null
+  }
+
   /** 조합 중인 글자를 받침 없이 확정합니다. */
   commitPending(): void {
     if (this.cho === null) return

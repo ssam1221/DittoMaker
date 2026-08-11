@@ -13,6 +13,7 @@ import {
 import { createCalendar, type MonthDay } from '../ui/calendar'
 import { FocusGrid } from '../ui/focus'
 import { CHOSEONG, JONGSEONG, JUNGSEONG, NameComposer } from '../ui/hangul'
+import { HiddenTextInput } from '../ui/textInput'
 import {
   addChoice,
   addPrompt,
@@ -80,6 +81,8 @@ export class SetupScene extends Phaser.Scene {
   private readonly focus = new FocusGrid()
   /** 지금 입력 중인 값을 보여주는 글자 */
   private entry?: Phaser.GameObjects.Text
+  /** 키보드로 직접 칠 때 쓰는 보이지 않는 입력창 */
+  private textInput?: HiddenTextInput
 
   private answers: Partial<SetupResult> = {}
 
@@ -103,6 +106,12 @@ export class SetupScene extends Phaser.Scene {
     playBgm(this, AudioKey.Setup)
     this.bindKeyboard()
     this.renderStep()
+
+    // 입력창은 초점을 놓치면 스스로 되찾으므로, 씬을 떠날 때 반드시 치웁니다.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.textInput?.destroy()
+      this.textInput = undefined
+    })
     this.cameras.main.fadeIn(300, 0, 0, 0)
   }
 
@@ -116,6 +125,10 @@ export class SetupScene extends Phaser.Scene {
     // 표시 목록에서만 빠지고 입력 판정은 그대로 남습니다.
     this.children.removeAll(true)
     this.focus.clear()
+
+    // 글자를 받는 단계에서만 입력창을 띄웁니다.
+    this.textInput?.destroy()
+    this.textInput = undefined
 
     const step = this.step
 
@@ -159,8 +172,13 @@ export class SetupScene extends Phaser.Scene {
   }
 
   private addKeyboardHint(): void {
+    const typing = this.step !== 'dittoBirthday' && this.step !== 'birthday'
+    const hint = typing
+      ? '키보드로 바로 입력    방향키 이동    Space 선택    Enter 완성'
+      : '방향키 이동    Enter 선택'
+
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, '방향키 이동    Enter 선택    Backspace 지우기', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, hint, {
         fontFamily: FontFamily.Body,
         fontSize: '15px',
         color: '#8a7a55',
@@ -205,7 +223,8 @@ export class SetupScene extends Phaser.Scene {
   private renderNameStep(): void {
     this.composer.clear()
 
-    const entry = this.add.text(GAME_WIDTH / 2, PANEL.y + 92, '', {
+    // 8자를 다 채워도 아래 자모 묶음 라벨과 겹치지 않는 높이입니다.
+    const entry = this.add.text(GAME_WIDTH / 2, PANEL.y + 64, '', {
       fontFamily: FontFamily.Body,
       fontSize: '34px',
       color: '#ffd447',
@@ -213,8 +232,11 @@ export class SetupScene extends Phaser.Scene {
     entry.setOrigin(0.5, 0)
     this.entry = entry
 
+    // 화면 자판으로 고친 값을 입력창에도 맞춰 둡니다. 그래야 이어서
+    // 키보드로 칠 때 앞 글자가 사라지지 않습니다.
     const refresh = (): void => {
       entry.setText(this.composer.text)
+      this.textInput?.setValue(this.composer.text)
     }
 
     this.addJamoGroup('초성', GROUPS.cho, CHOSEONG, (index) => {
@@ -230,18 +252,31 @@ export class SetupScene extends Phaser.Scene {
       refresh()
     })
 
-    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
-      this.composer.commitPending()
-      const value = this.composer.text.trim()
-      if (value.length === 0) return
-
-      this.finishStep(value)
-    })
+    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => this.submitName())
 
     this.choice(PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
       this.composer.backspace()
       refresh()
     })
+
+    this.textInput = new HiddenTextInput({
+      maxLength: MAX_NAME,
+      onChange: (value) => {
+        this.composer.setText(value)
+        entry.setText(value)
+      },
+      onSubmit: () => this.submitName(),
+      onActivate: () => this.focus.activate(),
+      onMove: (dx, dy) => this.focus.move(dx, dy),
+    })
+  }
+
+  private submitName(): void {
+    this.composer.commitPending()
+    const value = this.composer.text.trim()
+    if (value.length === 0) return
+
+    this.finishStep(value)
   }
 
   private addJamoGroup(
@@ -278,6 +313,7 @@ export class SetupScene extends Phaser.Scene {
 
     const refresh = (): void => {
       entry.setText(this.ageText)
+      this.textInput?.setValue(this.ageText)
     }
 
     for (let digit = 0; digit <= 9; digit += 1) {
@@ -298,17 +334,31 @@ export class SetupScene extends Phaser.Scene {
       )
     }
 
-    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
-      const value = Number(this.ageText)
-      if (!Number.isFinite(value) || value <= 0) return
-
-      this.finishStep(value)
-    })
+    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => this.submitAge())
 
     this.choice(PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
       this.ageText = this.ageText.slice(0, -1)
       refresh()
     })
+
+    this.textInput = new HiddenTextInput({
+      maxLength: 2,
+      numeric: true,
+      onChange: (value) => {
+        this.ageText = value
+        entry.setText(value)
+      },
+      onSubmit: () => this.submitAge(),
+      onActivate: () => this.focus.activate(),
+      onMove: (dx, dy) => this.focus.move(dx, dy),
+    })
+  }
+
+  private submitAge(): void {
+    const value = Number(this.ageText)
+    if (!Number.isFinite(value) || value <= 0) return
+
+    this.finishStep(value)
   }
 
   private renderCalendarStep(step: Step): void {
