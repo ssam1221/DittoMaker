@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 
 import { applyMasterVolume } from '../audio/volume'
-import { AudioKey, MAIN_FONT, SceneKey, TextureKey } from '../constants'
+import { AudioKey, MAIN_FONT, MusicFile, SceneKey, TextureKey } from '../constants'
 
 /**
  * 에셋을 로딩하는 씬. 로딩이 끝나면 곧바로 GameScene 으로 넘어갑니다.
@@ -17,7 +17,7 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image(TextureKey.Logo, 'assets/ditto_logo.png')
-    this.load.audio(AudioKey.Opening, 'music/opening.mp3')
+    this.load.audio(AudioKey.Opening, `music/${encodeURIComponent(MusicFile.Opening)}`)
 
     // 예시:
     // this.load.spritesheet('hero', 'assets/hero.png', { frameWidth: 32, frameHeight: 32 })

@@ -79,19 +79,11 @@ function drawMonth(
   onPick: (value: MonthDay) => void,
   highlight: string,
 ): void {
-  // 왼쪽에 연도와 달
+  // 왼쪽에 달 표시. 연도는 요일을 맞추는 데만 쓰고 화면에는 내지 않습니다.
   scene.add
-    .text(blockX + 8, blockY + 6, `${GAME_YEAR}`, {
+    .text(blockX + 14, blockY + 16, `${month}`, {
       fontFamily: FontFamily.Plain,
-      fontSize: '11px',
-      color: '#f6efdc',
-    })
-    .setOrigin(0, 0)
-
-  scene.add
-    .text(blockX + 12, blockY + 24, `${month}`, {
-      fontFamily: FontFamily.Plain,
-      fontSize: '20px',
+      fontSize: '22px',
       color: '#f6efdc',
     })
     .setOrigin(0, 0)

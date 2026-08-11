@@ -23,7 +23,15 @@ export const TextureKey = {
 /** 오디오 키 */
 export const AudioKey = {
   Opening: 'opening',
+  Setup: 'setup',
   Coronet: 'coronet',
+} as const
+
+/** 배경음 파일 이름 (public/music/ 기준) */
+export const MusicFile = {
+  Opening: 'opening.mp3',
+  Setup: '1-05. Professor Oak.mp3',
+  Coronet: '1-62 - Coronet Highlands - Base.mp3',
 } as const
 
 /** 게임 메인 폰트. index.html 의 @font-face 이름과 같아야 합니다. */

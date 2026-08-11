@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 
 import { playBgm } from '../audio/bgm'
-import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
+import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, MusicFile, SceneKey } from '../constants'
 import { createPokemonFrame } from '../ui/pokemonFrame'
 
 /** 지금 화면에 세울 포켓몬 */
@@ -9,8 +9,6 @@ const SPEAKER = {
   no: 493,
   file: '0493-아르세우스',
   line: '안녕하세요',
-  /** 이 장면에서 흐를 곡 (public/music/ 기준) */
-  bgm: '1-62 - Coronet Highlands - Base.mp3',
 }
 
 const INFO_KEY = 'pokemon-info'
@@ -51,7 +49,7 @@ export class DialogueScene extends Phaser.Scene {
 
     // 5MB 가 넘어서 부팅 때 받지 않고 이 씬에 들어올 때 받습니다.
     // 파일명에 공백이 있어 URL 로 안전하게 바꿔 넘깁니다.
-    this.load.audio(AudioKey.Coronet, `music/${encodeURIComponent(SPEAKER.bgm)}`)
+    this.load.audio(AudioKey.Coronet, `music/${encodeURIComponent(MusicFile.Coronet)}`)
   }
 
   create(): void {

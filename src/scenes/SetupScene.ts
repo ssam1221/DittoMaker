@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 
-import { FontFamily, GAME_WIDTH, SAVE_KEY, SceneKey } from '../constants'
+import { playBgm } from '../audio/bgm'
+import { AudioKey, FontFamily, GAME_WIDTH, MusicFile, SAVE_KEY, SceneKey } from '../constants'
 import { createCalendar, type MonthDay } from '../ui/calendar'
 import { CHOSEONG, JONGSEONG, JUNGSEONG, NameComposer } from '../ui/hangul'
 import {
@@ -71,11 +72,16 @@ export class SetupScene extends Phaser.Scene {
     super(SceneKey.Setup)
   }
 
+  preload(): void {
+    this.load.audio(AudioKey.Setup, `music/${encodeURIComponent(MusicFile.Setup)}`)
+  }
+
   create(): void {
     this.stepIndex = 0
     this.composer = new NameComposer(MAX_NAME)
     this.ageText = ''
 
+    playBgm(this, AudioKey.Setup)
     this.renderStep()
     this.cameras.main.fadeIn(300, 0, 0, 0)
   }
