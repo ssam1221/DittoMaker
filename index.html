@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="./assets/ditto_logo.png" />
+    <title>Ditto Maker</title>
+    <style>
+      /* 게임 메인 폰트. block 으로 두어 폰트가 오기 전에는 글자를 그리지 않습니다. */
+      @font-face {
+        font-family: 'PokemonBW';
+        src: url('./assets/fonts/pokemon-bw.otf') format('opentype');
+        font-display: block;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #12141c;
+        overflow: hidden;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
