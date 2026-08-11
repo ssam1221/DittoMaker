@@ -1,8 +1,17 @@
 import Phaser from 'phaser'
 
 import { playBgm } from '../audio/bgm'
-import { AudioKey, FontFamily, GAME_WIDTH, MusicFile, SAVE_KEY, SceneKey } from '../constants'
+import {
+  AudioKey,
+  FontFamily,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  MusicFile,
+  SAVE_KEY,
+  SceneKey,
+} from '../constants'
 import { createCalendar, type MonthDay } from '../ui/calendar'
+import { FocusGrid } from '../ui/focus'
 import { CHOSEONG, JONGSEONG, JUNGSEONG, NameComposer } from '../ui/hangul'
 import {
   addChoice,
@@ -68,6 +77,9 @@ export class SetupScene extends Phaser.Scene {
   private composer = new NameComposer(MAX_NAME)
   private ageText = ''
   private year = new Date().getFullYear()
+  private readonly focus = new FocusGrid()
+  /** 지금 입력 중인 값을 보여주는 글자 */
+  private entry?: Phaser.GameObjects.Text
 
   private answers: Partial<SetupResult> = {}
 
@@ -89,6 +101,7 @@ export class SetupScene extends Phaser.Scene {
     this.year = new Date().getFullYear()
 
     playBgm(this, AudioKey.Setup)
+    this.bindKeyboard()
     this.renderStep()
     this.cameras.main.fadeIn(300, 0, 0, 0)
   }
@@ -99,26 +112,94 @@ export class SetupScene extends Phaser.Scene {
 
   /** 단계가 바뀔 때마다 화면을 통째로 다시 그립니다. */
   private renderStep(): void {
-    this.children.removeAll()
-    this.input.removeAllListeners()
+    // true 를 줘야 지운 오브젝트가 실제로 파괴됩니다. 그냥 지우면
+    // 표시 목록에서만 빠지고 입력 판정은 그대로 남습니다.
+    this.children.removeAll(true)
+    this.focus.clear()
 
     const step = this.step
 
     if (step === 'dittoBirthday' || step === 'birthday') {
       this.renderCalendarStep(step)
+    } else {
+      drawParchmentFrame(this)
+      drawInnerPanel(this, PANEL, COLORS[step])
+      addPrompt(this, PANEL, PROMPTS[step])
+
+      if (step === 'age') {
+        this.renderAgeStep()
+      } else {
+        this.renderNameStep()
+      }
+    }
+
+    this.addKeyboardHint()
+    this.focus.focusAt(0)
+  }
+
+  /**
+   * 키는 씬이 시작될 때 한 번만 겁니다.
+   *
+   * 단계마다 다시 걸면 핸들러가 겹겹이 쌓입니다. this.input 과
+   * this.input.keyboard 는 서로 다른 이미터라, 앞의 것을 비워도
+   * 키보드 쪽 리스너는 그대로 남기 때문입니다. 바뀌는 것은 커서에
+   * 등록된 항목뿐이므로 핸들러는 그대로 두면 됩니다.
+   */
+  private bindKeyboard(): void {
+    const keyboard = this.input.keyboard!
+
+    keyboard.on('keydown-LEFT', () => this.focus.move(-1, 0))
+    keyboard.on('keydown-RIGHT', () => this.focus.move(1, 0))
+    keyboard.on('keydown-UP', () => this.focus.move(0, -1))
+    keyboard.on('keydown-DOWN', () => this.focus.move(0, 1))
+    keyboard.on('keydown-ENTER', () => this.focus.activate())
+    keyboard.on('keydown-SPACE', () => this.focus.activate())
+    // 자주 쓰는 지우기는 따로 열어 둡니다.
+    keyboard.on('keydown-BACKSPACE', () => this.erase())
+  }
+
+  private addKeyboardHint(): void {
+    this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, '방향키 이동    Enter 선택    Backspace 지우기', {
+        fontFamily: FontFamily.Body,
+        fontSize: '15px',
+        color: '#8a7a55',
+      })
+      .setOrigin(0.5, 1)
+  }
+
+  /** 커서에 등록하면서 고를 수 있는 글자를 만듭니다. */
+  private choice(
+    x: number,
+    y: number,
+    text: string,
+    onPick: () => void,
+    options: { fontSize?: string; color?: string } = {},
+  ): Phaser.GameObjects.Text {
+    const idleColor = options.color ?? '#e8dfc4'
+    let index = -1
+
+    const item = addChoice(this, x, y, text, onPick, {
+      ...options,
+      color: idleColor,
+      onFocus: () => this.focus.focusAt(index),
+    })
+
+    index = this.focus.add({ text: item, activate: onPick, idleColor })
+    return item
+  }
+
+  /** 단계에 맞는 지우기 동작 */
+  private erase(): void {
+    if (this.step === 'age') {
+      this.ageText = this.ageText.slice(0, -1)
+    } else if (this.step === 'surname' || this.step === 'dittoName') {
+      this.composer.backspace()
+    } else {
       return
     }
 
-    drawParchmentFrame(this)
-    drawInnerPanel(this, PANEL, COLORS[step])
-    addPrompt(this, PANEL, PROMPTS[step])
-
-    if (step === 'age') {
-      this.renderAgeStep()
-      return
-    }
-
-    this.renderNameStep()
+    this.entry?.setText(this.step === 'age' ? this.ageText : this.composer.text)
   }
 
   private renderNameStep(): void {
@@ -130,6 +211,7 @@ export class SetupScene extends Phaser.Scene {
       color: '#ffd447',
     })
     entry.setOrigin(0.5, 0)
+    this.entry = entry
 
     const refresh = (): void => {
       entry.setText(this.composer.text)
@@ -148,7 +230,7 @@ export class SetupScene extends Phaser.Scene {
       refresh()
     })
 
-    addChoice(this, PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
+    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
       this.composer.commitPending()
       const value = this.composer.text.trim()
       if (value.length === 0) return
@@ -156,7 +238,7 @@ export class SetupScene extends Phaser.Scene {
       this.finishStep(value)
     })
 
-    addChoice(this, PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
+    this.choice(PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
       this.composer.backspace()
       refresh()
     })
@@ -181,7 +263,7 @@ export class SetupScene extends Phaser.Scene {
     jamo.forEach((char, index) => {
       const x = group.x + (index % group.columns) * JAMO_COL
       const y = JAMO_TOP + Math.floor(index / group.columns) * JAMO_ROW
-      addChoice(this, x, y, char, () => onPick(index))
+      this.choice(x, y, char, () => onPick(index))
     })
   }
 
@@ -192,6 +274,7 @@ export class SetupScene extends Phaser.Scene {
       color: '#ffd447',
     })
     entry.setOrigin(0.5, 0)
+    this.entry = entry
 
     const refresh = (): void => {
       entry.setText(this.ageText)
@@ -199,24 +282,30 @@ export class SetupScene extends Phaser.Scene {
 
     for (let digit = 0; digit <= 9; digit += 1) {
       const x = GAME_WIDTH / 2 + (digit - 4.5) * 54
-      addChoice(this, x, PANEL.y + 214, `${digit}`, () => {
-        // 나이는 두 자리까지만 받습니다.
-        if (this.ageText.length >= 2) return
-        if (this.ageText === '' && digit === 0) return
+      this.choice(
+        x,
+        PANEL.y + 214,
+        `${digit}`,
+        () => {
+          // 나이는 두 자리까지만 받습니다.
+          if (this.ageText.length >= 2) return
+          if (this.ageText === '' && digit === 0) return
 
-        this.ageText += `${digit}`
-        refresh()
-      }, { fontSize: '30px' })
+          this.ageText += `${digit}`
+          refresh()
+        },
+        { fontSize: '30px' },
+      )
     }
 
-    addChoice(this, PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
+    this.choice(PANEL.x + 44, PANEL.y + PANEL.height - 34, '완성 !', () => {
       const value = Number(this.ageText)
       if (!Number.isFinite(value) || value <= 0) return
 
       this.finishStep(value)
     })
 
-    addChoice(this, PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
+    this.choice(PANEL.x + 154, PANEL.y + PANEL.height - 34, '지우기', () => {
       this.ageText = this.ageText.slice(0, -1)
       refresh()
     })
@@ -236,6 +325,9 @@ export class SetupScene extends Phaser.Scene {
       year: this.year,
       color: COLORS[step],
       onPick: (value) => this.finishStep(value),
+      register: (text, idleColor, activate) => {
+        this.focus.add({ text, idleColor, activate })
+      },
     })
   }
 

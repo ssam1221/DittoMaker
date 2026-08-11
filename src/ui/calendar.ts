@@ -18,7 +18,8 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 const COLUMNS = 3
 const BLOCK_WIDTH = 310
-const BLOCK_HEIGHT = 116
+// 화면 아래 안내 문구와 겹치지 않도록 잡은 높이입니다.
+const BLOCK_HEIGHT = 112
 const GRID_LEFT = 12
 const GRID_TOP = 52
 
@@ -47,13 +48,18 @@ export interface CalendarOptions {
   onPick: (value: MonthDay) => void
   color?: number
   highlight?: string
+  /**
+   * 키보드 커서에 날짜 칸을 등록합니다. 주어지면 색은 커서가 도맡으므로
+   * 달력은 마우스 올림에 따른 색 변경을 하지 않습니다.
+   */
+  register?: (text: Phaser.GameObjects.Text, idleColor: string, activate: () => void) => void
 }
 
 /**
  * 열두 달 달력을 그립니다. 날짜 하나하나가 누를 수 있는 글자입니다.
  */
 export function createCalendar(scene: Phaser.Scene, options: CalendarOptions): void {
-  const { year, onPick, color = 0x1f5560, highlight = '#ffd447' } = options
+  const { year, onPick, color = 0x1f5560, highlight = '#ffd447', register } = options
 
   const background = scene.add.graphics()
   background.fillStyle(color, 1)
@@ -67,7 +73,7 @@ export function createCalendar(scene: Phaser.Scene, options: CalendarOptions): v
     const blockX = GRID_LEFT + col * BLOCK_WIDTH
     const blockY = GRID_TOP + row * BLOCK_HEIGHT
 
-    drawMonth(scene, blockX, blockY, year, month, onPick, highlight)
+    drawMonth(scene, blockX, blockY, year, month, onPick, highlight, register)
   }
 }
 
@@ -79,6 +85,7 @@ function drawMonth(
   month: number,
   onPick: (value: MonthDay) => void,
   highlight: string,
+  register: CalendarOptions['register'],
 ): void {
   // 왼쪽에 연도와 달
   scene.add
@@ -130,8 +137,15 @@ function drawMonth(
       useHandCursor: true,
     })
 
-    text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => text.setColor(highlight))
-    text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => text.setColor(idle))
-    text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => onPick({ month, day }))
+    const pick = (): void => onPick({ month, day })
+
+    if (register) {
+      register(text, idle, pick)
+    } else {
+      text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => text.setColor(highlight))
+      text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => text.setColor(idle))
+    }
+
+    text.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, pick)
   }
 }

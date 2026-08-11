@@ -119,6 +119,12 @@ export interface ChoiceOptions {
   color?: string
   hoverColor?: string
   origin?: [number, number]
+  /**
+   * 주어지면 마우스를 올렸을 때 이 함수만 부르고 색은 건드리지 않습니다.
+   * 키보드 커서와 색을 두고 다투지 않도록, 커서를 쓰는 화면에서는
+   * 호출하는 쪽이 색을 도맡습니다.
+   */
+  onFocus?: () => void
 }
 
 /**
@@ -138,14 +144,20 @@ export function addChoice(
     color = '#e8dfc4',
     hoverColor = '#ffd447',
     origin = [0.5, 0.5],
+    onFocus,
   } = options
 
   const item = scene.add.text(x, y, text, { fontFamily: FontFamily.Body, fontSize, color })
   item.setOrigin(origin[0], origin[1])
   item.setInteractive({ useHandCursor: true })
 
-  item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => item.setColor(hoverColor))
-  item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => item.setColor(color))
+  if (onFocus) {
+    item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, onFocus)
+  } else {
+    item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => item.setColor(hoverColor))
+    item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => item.setColor(color))
+  }
+
   item.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, onPick)
 
   return item
