@@ -6,6 +6,9 @@ export const GAME_HEIGHT = 540
 export const SceneKey = {
   Boot: 'Boot',
   Menu: 'Menu',
+  Settings: 'Settings',
+  Setup: 'Setup',
+  Dialogue: 'Dialogue',
   Game: 'Game',
 } as const
 
@@ -20,6 +23,7 @@ export const TextureKey = {
 /** 오디오 키 */
 export const AudioKey = {
   Opening: 'opening',
+  Coronet: 'coronet',
 } as const
 
 /** 게임 메인 폰트. index.html 의 @font-face 이름과 같아야 합니다. */
@@ -29,6 +33,11 @@ export const MAIN_FONT = 'PokemonBW'
 export const FontFamily = {
   Title: `"${MAIN_FONT}", Georgia, "Times New Roman", serif`,
   Body: `"${MAIN_FONT}", "Segoe UI", "Malgun Gothic", sans-serif`,
+  /**
+   * 달력 날짜처럼 아주 작게 찍어야 하는 곳에 씁니다.
+   * 픽셀 폰트는 작은 크기에서 획이 뭉개져 숫자를 읽기 어렵습니다.
+   */
+  Plain: '"Segoe UI", "Malgun Gothic", sans-serif',
 } as const
 
 /** localStorage 세이브 슬롯 키 */

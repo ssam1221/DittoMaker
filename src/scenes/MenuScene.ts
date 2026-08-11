@@ -1,6 +1,15 @@
 import Phaser from 'phaser'
 
-import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SAVE_KEY, SceneKey, TextureKey } from '../constants'
+import { playBgm } from '../audio/bgm'
+import {
+  AudioKey,
+  FontFamily,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  SAVE_KEY,
+  SceneKey,
+  TextureKey,
+} from '../constants'
 
 type MenuAction = 'new' | 'load' | 'settings' | 'exit'
 
@@ -31,6 +40,8 @@ export class MenuScene extends Phaser.Scene {
   create(): void {
     this.items = []
     this.selectedIndex = 0
+
+    playBgm(this, AudioKey.Opening)
 
     this.createBackground()
     this.createTitle()
@@ -202,13 +213,15 @@ export class MenuScene extends Phaser.Scene {
 
     switch (item.action) {
       case 'new':
-        this.leaveTo(SceneKey.Game)
+        this.leaveTo(SceneKey.Setup)
         break
-      case 'load':
-        this.leaveTo(SceneKey.Game, { save: this.readSave() })
+      case 'load': {
+        const save = this.readSave()
+        if (save) this.leaveTo(SceneKey.Dialogue, save as object)
         break
+      }
       case 'settings':
-        this.showToast('Settings 는 아직 준비 중입니다')
+        this.leaveTo(SceneKey.Settings)
         break
       case 'exit':
         this.exitGame()
