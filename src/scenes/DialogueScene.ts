@@ -13,6 +13,7 @@ const SPEAKER = {
 
 const INFO_KEY = 'pokemon-info'
 const SPACE_KEY = 'space'
+const PORTRAIT_KEY = 'speaker-portrait'
 
 /** 대화창 영역 */
 const BOX = {
@@ -45,6 +46,9 @@ export class DialogueScene extends Phaser.Scene {
   preload(): void {
     this.load.image(SPACE_KEY, 'assets/background/space.png')
     this.load.image(SPEAKER.file, `assets/pokemon/artwork/${SPEAKER.file}.png`)
+    // 대화창에는 얼굴만 잘라 둔 초상화를 씁니다. 전신을 축소해 넣으면
+    // 작은 틀 안에서 표정이 보이지 않습니다.
+    this.load.image(PORTRAIT_KEY, `assets/pokemon/portrait/${SPEAKER.file}.png`)
     this.load.json(INFO_KEY, 'data/pokemon-info.json')
 
     // 5MB 가 넘어서 부팅 때 받지 않고 이 씬에 들어올 때 받습니다.
@@ -93,7 +97,7 @@ export class DialogueScene extends Phaser.Scene {
     box.lineStyle(3, 0x6b5ea8, 1)
     box.strokeRoundedRect(BOX.x, BOX.y, BOX.width, BOX.height, 14)
 
-    createPokemonFrame(this, PORTRAIT_X, PORTRAIT_Y, SPEAKER.file, {
+    createPokemonFrame(this, PORTRAIT_X, PORTRAIT_Y, PORTRAIT_KEY, {
       size: PORTRAIT_SIZE,
       shape: 'rounded',
       background: 0x241f3d,

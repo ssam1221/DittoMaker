@@ -29,6 +29,8 @@ const GROUPS = {
 }
 
 export interface SetupResult {
+  /** New Game 을 누른 시점의 연도. 달력이 이 해를 기준으로 그려집니다. */
+  year: number
   surname: string
   dittoName: string
   dittoBirthday: MonthDay
@@ -65,8 +67,9 @@ export class SetupScene extends Phaser.Scene {
   private stepIndex = 0
   private composer = new NameComposer(MAX_NAME)
   private ageText = ''
+  private year = new Date().getFullYear()
 
-  private readonly answers: Partial<SetupResult> = {}
+  private answers: Partial<SetupResult> = {}
 
   constructor() {
     super(SceneKey.Setup)
@@ -80,6 +83,10 @@ export class SetupScene extends Phaser.Scene {
     this.stepIndex = 0
     this.composer = new NameComposer(MAX_NAME)
     this.ageText = ''
+    this.answers = {}
+
+    // New Game 을 누른 지금이 이 판의 기준 해가 됩니다.
+    this.year = new Date().getFullYear()
 
     playBgm(this, AudioKey.Setup)
     this.renderStep()
@@ -226,6 +233,7 @@ export class SetupScene extends Phaser.Scene {
     prompt.setOrigin(0.5, 0)
 
     createCalendar(this, {
+      year: this.year,
       color: COLORS[step],
       onPick: (value) => this.finishStep(value),
     })
@@ -269,6 +277,7 @@ export class SetupScene extends Phaser.Scene {
   }
 
   private complete(): void {
+    this.answers.year = this.year
     const result = this.answers as SetupResult
 
     try {

@@ -9,8 +9,6 @@ import { FontFamily, GAME_WIDTH } from '../constants'
  * 연도가 없으면 요일 머리글이 의미를 잃기 때문입니다.
  */
 
-export const GAME_YEAR = 1200
-
 export interface MonthDay {
   month: number
   day: number
@@ -43,6 +41,8 @@ function firstWeekday(year: number, month: number): number {
 }
 
 export interface CalendarOptions {
+  /** 달력이 나타낼 해. 요일 배치와 2월 길이가 여기에 따라 달라집니다. */
+  year: number
   /** 날짜를 골랐을 때 */
   onPick: (value: MonthDay) => void
   color?: number
@@ -53,7 +53,7 @@ export interface CalendarOptions {
  * 열두 달 달력을 그립니다. 날짜 하나하나가 누를 수 있는 글자입니다.
  */
 export function createCalendar(scene: Phaser.Scene, options: CalendarOptions): void {
-  const { onPick, color = 0x1f5560, highlight = '#ffd447' } = options
+  const { year, onPick, color = 0x1f5560, highlight = '#ffd447' } = options
 
   const background = scene.add.graphics()
   background.fillStyle(color, 1)
@@ -67,7 +67,7 @@ export function createCalendar(scene: Phaser.Scene, options: CalendarOptions): v
     const blockX = GRID_LEFT + col * BLOCK_WIDTH
     const blockY = GRID_TOP + row * BLOCK_HEIGHT
 
-    drawMonth(scene, blockX, blockY, month, onPick, highlight)
+    drawMonth(scene, blockX, blockY, year, month, onPick, highlight)
   }
 }
 
@@ -75,15 +75,24 @@ function drawMonth(
   scene: Phaser.Scene,
   blockX: number,
   blockY: number,
+  year: number,
   month: number,
   onPick: (value: MonthDay) => void,
   highlight: string,
 ): void {
-  // 왼쪽에 달 표시. 연도는 요일을 맞추는 데만 쓰고 화면에는 내지 않습니다.
+  // 왼쪽에 연도와 달
   scene.add
-    .text(blockX + 14, blockY + 16, `${month}`, {
+    .text(blockX + 8, blockY + 6, `${year}`, {
       fontFamily: FontFamily.Plain,
-      fontSize: '22px',
+      fontSize: '11px',
+      color: '#f6efdc',
+    })
+    .setOrigin(0, 0)
+
+  scene.add
+    .text(blockX + 12, blockY + 24, `${month}`, {
+      fontFamily: FontFamily.Plain,
+      fontSize: '20px',
       color: '#f6efdc',
     })
     .setOrigin(0, 0)
@@ -99,8 +108,8 @@ function drawMonth(
       .setOrigin(0.5, 0)
   })
 
-  const total = daysInMonth(GAME_YEAR, month)
-  const offset = firstWeekday(GAME_YEAR, month)
+  const total = daysInMonth(year, month)
+  const offset = firstWeekday(year, month)
 
   for (let day = 1; day <= total; day += 1) {
     const cell = offset + day - 1
