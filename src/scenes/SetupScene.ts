@@ -435,7 +435,8 @@ export class SetupScene extends Phaser.Scene {
       }
 
       writeSlot(slot, result)
-      this.scene.start(SceneKey.Dialogue, result)
+      // 슬롯 번호를 함께 넘겨야 육성 화면에서 이어 저장할 수 있습니다.
+      this.scene.start(SceneKey.Dialogue, { ...result, slot })
     })
   }
 }

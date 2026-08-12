@@ -215,7 +215,8 @@ export class SaveSlotScene extends Phaser.Scene {
       const data = listSlots()[this.selected]?.data
       if (!data) return
 
-      this.leaveTo(SceneKey.Dialogue, data)
+      // 이미 육성이 시작된 판이면 오프닝을 다시 보여줄 이유가 없습니다.
+      this.leaveTo(data.raising ? SceneKey.Raising : SceneKey.Dialogue, data)
       return
     }
 
@@ -237,7 +238,7 @@ export class SaveSlotScene extends Phaser.Scene {
     if (!this.pending) return
 
     writeSlot(slot, this.pending)
-    this.leaveTo(SceneKey.Dialogue, this.pending)
+    this.leaveTo(SceneKey.Dialogue, { ...this.pending, slot })
   }
 
   private askDelete(): void {

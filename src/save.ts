@@ -1,3 +1,4 @@
+import type { RaisingState } from './raising'
 import type { MonthDay } from './ui/calendar'
 
 /**
@@ -22,6 +23,10 @@ export interface SaveData {
   dittoBirthday: MonthDay
   age: number
   birthday: MonthDay
+  /** 육성 진행 상태. 오프닝만 본 예전 세이브에는 없습니다. */
+  raising?: RaisingState
+  /** 이 기록이 들어 있는 슬롯 번호. 덮어 저장할 때 씁니다. */
+  slot?: number
 }
 
 export interface Slot {
@@ -74,7 +79,8 @@ export function listSlots(): Slot[] {
 
 export function writeSlot(slot: number, data: SaveData): void {
   try {
-    window.localStorage.setItem(slotKey(slot), JSON.stringify(data))
+    // 슬롯 번호를 함께 담아 두면 그 판을 이어서 저장할 때 어디에 쓸지 압니다.
+    window.localStorage.setItem(slotKey(slot), JSON.stringify({ ...data, slot }))
   } catch {
     // 저장이 막혀도 이번 판은 그대로 이어집니다.
   }

@@ -5,6 +5,7 @@ import { BootScene } from './scenes/BootScene'
 import { DialogueScene } from './scenes/DialogueScene'
 import { GameScene } from './scenes/GameScene'
 import { MenuScene } from './scenes/MenuScene'
+import { RaisingScene } from './scenes/RaisingScene'
 import { SaveSlotScene } from './scenes/SaveSlotScene'
 import { SettingsScene } from './scenes/SettingsScene'
 import { SetupScene } from './scenes/SetupScene'
@@ -35,6 +36,7 @@ const config: Phaser.Types.Core.GameConfig = {
     SaveSlotScene,
     SetupScene,
     DialogueScene,
+    RaisingScene,
     GameScene,
   ],
 }

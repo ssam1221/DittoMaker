@@ -194,10 +194,22 @@ export class DialogueScene extends Phaser.Scene {
       return
     }
 
-    if (this.index >= this.script.length - 1) return
+    // 마지막 줄에서 한 번 더 누르면 육성이 시작됩니다.
+    if (this.index >= this.script.length - 1) {
+      this.startRaising()
+      return
+    }
 
     this.index += 1
     this.showLine()
+  }
+
+  private startRaising(): void {
+    this.typing?.remove()
+    this.cameras.main.fadeOut(700, 0, 0, 0)
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start(SceneKey.Raising, this.save)
+    })
   }
 
   private showLine(): void {
@@ -234,9 +246,6 @@ export class DialogueScene extends Phaser.Scene {
 
   private settleLine(): void {
     this.settled = true
-
-    // 마지막 줄에는 넘길 곳이 없으니 표시를 띄우지 않습니다.
-    if (this.index >= this.script.length - 1) return
 
     if (!this.marker) {
       this.marker = this.add.text(BOX.x + BOX.width - 30, BOX.y + BOX.height - 30, '▼', {
