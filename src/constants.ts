@@ -7,6 +7,7 @@ export const SceneKey = {
   Boot: 'Boot',
   Menu: 'Menu',
   Settings: 'Settings',
+  Slots: 'Slots',
   Setup: 'Setup',
   Dialogue: 'Dialogue',
   Game: 'Game',

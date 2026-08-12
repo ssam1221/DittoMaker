@@ -1,12 +1,12 @@
 import Phaser from 'phaser'
 
 import { playBgm } from '../audio/bgm'
+import { hasAnySave } from '../save'
 import {
   AudioKey,
   FontFamily,
   GAME_HEIGHT,
   GAME_WIDTH,
-  SAVE_KEY,
   SceneKey,
   TextureKey,
 } from '../constants'
@@ -100,7 +100,7 @@ export class MenuScene extends Phaser.Scene {
 
     const definitions: ReadonlyArray<{ action: MenuAction; label: string; enabled: boolean }> = [
       { action: 'new', label: 'New Game', enabled: true },
-      { action: 'load', label: 'Load Game', enabled: this.readSave() !== null },
+      { action: 'load', label: 'Load Game', enabled: hasAnySave() },
       { action: 'settings', label: 'Settings', enabled: true },
       { action: 'exit', label: 'Exit', enabled: true },
     ]
@@ -215,11 +215,9 @@ export class MenuScene extends Phaser.Scene {
       case 'new':
         this.leaveTo(SceneKey.Setup)
         break
-      case 'load': {
-        const save = this.readSave()
-        if (save) this.leaveTo(SceneKey.Dialogue, save as object)
+      case 'load':
+        this.leaveTo(SceneKey.Slots, { mode: 'load' })
         break
-      }
       case 'settings':
         this.leaveTo(SceneKey.Settings)
         break
@@ -253,16 +251,6 @@ export class MenuScene extends Phaser.Scene {
           '</p>'
       }
     })
-  }
-
-  private readSave(): unknown {
-    try {
-      const raw = window.localStorage.getItem(SAVE_KEY)
-      return raw === null ? null : JSON.parse(raw)
-    } catch {
-      // localStorage 차단(시크릿 모드 등)이나 깨진 JSON 은 세이브 없음으로 취급
-      return null
-    }
   }
 
   private showToast(message: string): void {

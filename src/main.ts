@@ -5,6 +5,7 @@ import { BootScene } from './scenes/BootScene'
 import { DialogueScene } from './scenes/DialogueScene'
 import { GameScene } from './scenes/GameScene'
 import { MenuScene } from './scenes/MenuScene'
+import { SaveSlotScene } from './scenes/SaveSlotScene'
 import { SettingsScene } from './scenes/SettingsScene'
 import { SetupScene } from './scenes/SetupScene'
 
@@ -27,7 +28,15 @@ const config: Phaser.Types.Core.GameConfig = {
       debug: false,
     },
   },
-  scene: [BootScene, MenuScene, SettingsScene, SetupScene, DialogueScene, GameScene],
+  scene: [
+    BootScene,
+    MenuScene,
+    SettingsScene,
+    SaveSlotScene,
+    SetupScene,
+    DialogueScene,
+    GameScene,
+  ],
 }
 
 const game = new Phaser.Game(config)

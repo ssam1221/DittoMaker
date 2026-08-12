@@ -7,9 +7,10 @@ import {
   GAME_HEIGHT,
   GAME_WIDTH,
   MusicFile,
-  SAVE_KEY,
   SceneKey,
 } from '../constants'
+import { firstEmptySlot, writeSlot } from '../save'
+import type { SlotSceneData } from './SaveSlotScene'
 import { createCalendar, type MonthDay } from '../ui/calendar'
 import { FocusGrid } from '../ui/focus'
 import { CHOSEONG, JONGSEONG, JUNGSEONG, NameComposer } from '../ui/hangul'
@@ -422,14 +423,18 @@ export class SetupScene extends Phaser.Scene {
     this.answers.year = this.year
     const result = this.answers as SetupResult
 
-    try {
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify(result))
-    } catch {
-      // 저장이 막혀도 이번 판은 그대로 이어집니다.
-    }
+    // 빈 슬롯이 있으면 거기에 넣고 바로 시작합니다. 열 칸이 모두 차 있을
+    // 때만 어느 것을 덮어쓸지 물어봅니다. 말없이 덮어쓸 수는 없습니다.
+    const slot = firstEmptySlot()
 
     this.cameras.main.fadeOut(400, 0, 0, 0)
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      if (slot === null) {
+        this.scene.start(SceneKey.Slots, { mode: 'save', pending: result } satisfies SlotSceneData)
+        return
+      }
+
+      writeSlot(slot, result)
       this.scene.start(SceneKey.Dialogue, result)
     })
   }
