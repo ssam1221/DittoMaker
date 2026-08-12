@@ -28,6 +28,24 @@ export const JONGSEONG = [
   'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
 ] as const
 
+/** 마지막 글자에 받침이 있는지. 한글이 아니면 false. */
+export function hasBatchim(word: string): boolean {
+  const last = word.trim().slice(-1)
+  if (!last) return false
+
+  const code = last.charCodeAt(0) - BASE
+  if (code < 0 || code > 11171) return false
+
+  return code % JONG_COUNT !== 0
+}
+
+/**
+ * 받침 유무에 따라 조사를 붙입니다. (예: 김 -> "김이여", 수미 -> "수미여")
+ */
+export function withJosa(word: string, afterBatchim: string, afterVowel: string): string {
+  return word + (hasBatchim(word) ? afterBatchim : afterVowel)
+}
+
 /**
  * 초성·중성·종성 순번으로 음절 한 글자를 만듭니다.
  * jong 은 0 이 받침 없음이고, JONGSEONG 배열의 n 번째는 n+1 입니다.
