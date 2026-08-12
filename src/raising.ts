@@ -15,6 +15,40 @@ export const TOTAL_YEARS = 10
 
 export const STAT_MAX = 999
 
+/** 타입 적성의 최대치 */
+export const TYPE_MAX = 255
+
+/**
+ * 타입 적성. 메타몽은 무엇으로든 변할 수 있으니, 어느 타입에 얼마나
+ * 익숙해졌는지를 따로 들고 있습니다.
+ *
+ * 순서는 포켓몬 타입 상성표의 차례를 따랐습니다.
+ */
+export const TYPES = [
+  { key: 'normal', label: '노말', color: 0xa8a878 },
+  { key: 'fighting', label: '격투', color: 0xc03028 },
+  { key: 'flying', label: '비행', color: 0xa890f0 },
+  { key: 'poison', label: '독', color: 0xa040a0 },
+  { key: 'ground', label: '땅', color: 0xe0c068 },
+  { key: 'rock', label: '바위', color: 0xb8a038 },
+  { key: 'bug', label: '벌레', color: 0xa8b820 },
+  { key: 'ghost', label: '고스트', color: 0x705898 },
+  { key: 'steel', label: '강철', color: 0xb8b8d0 },
+  { key: 'fire', label: '불꽃', color: 0xf08030 },
+  { key: 'water', label: '물', color: 0x6890f0 },
+  { key: 'grass', label: '풀', color: 0x78c850 },
+  { key: 'electric', label: '전기', color: 0xf8d030 },
+  { key: 'psychic', label: '에스퍼', color: 0xf85888 },
+  { key: 'ice', label: '얼음', color: 0x98d8d8 },
+  { key: 'dragon', label: '드래곤', color: 0x7038f8 },
+  { key: 'dark', label: '악', color: 0x705848 },
+  { key: 'fairy', label: '페어리', color: 0xee99ac },
+] as const
+
+export type TypeKey = (typeof TYPES)[number]['key']
+
+export type TypeAffinity = Record<TypeKey, number>
+
 export interface Stats {
   hp: number
   attack: number
@@ -29,6 +63,8 @@ export interface RaisingState {
   week: number
   money: number
   stats: Stats
+  /** 타입별 적성. 0 ~ TYPE_MAX */
+  types: TypeAffinity
   /** 0~100. 낮으면 훈련 효과가 떨어집니다. */
   condition: number
   /** 0~100. 쌓이면 컨디션을 갉아먹습니다. */
@@ -44,12 +80,19 @@ export const STAT_LABELS: ReadonlyArray<{ key: keyof Stats; label: string }> = [
   { key: 'bond', label: '친밀도' },
 ]
 
+/** 모든 타입을 같은 값으로 채운 적성표 */
+function makeAffinity(value: number): TypeAffinity {
+  return Object.fromEntries(TYPES.map((type) => [type.key, value])) as TypeAffinity
+}
+
 export function createRaisingState(): RaisingState {
   return {
     week: 0,
     money: 3000,
     // 메타몽은 아직 아무것도 아니라 어느 쪽으로도 치우치지 않은 값에서 시작합니다.
     stats: { hp: 20, attack: 20, defense: 20, special: 20, speed: 20, bond: 30 },
+    // 노말만 조금 높습니다. 변신하지 않은 메타몽 자신의 타입입니다.
+    types: { ...makeAffinity(0), normal: 20 },
     condition: 80,
     stress: 0,
   }
@@ -64,6 +107,8 @@ export function ensureRaisingState(state: RaisingState | undefined): RaisingStat
     ...base,
     ...state,
     stats: { ...base.stats, ...state.stats },
+    // 타입이 나중에 늘어나도 빠진 칸이 생기지 않게 합칩니다.
+    types: { ...base.types, ...state.types },
   }
 }
 

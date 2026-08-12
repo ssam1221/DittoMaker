@@ -9,6 +9,8 @@ import {
   ensureRaisingState,
   rest,
   STAT_LABELS,
+  TYPE_MAX,
+  TYPES,
   type RaisingState,
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
@@ -30,11 +32,20 @@ const COMMAND_Y = 486
 
 const BAR_LEFT = STATUS.x + 84
 const BAR_WIDTH = STATUS.width - 132
-const BAR_TOP = STATUS.y + 116
-const BAR_GAP = 34
+const BAR_TOP = STATUS.y + 132
+const BAR_GAP = 30
 
 /** 막대가 가득 차는 기준값. 999 를 기준으로 잡으면 초반에 거의 안 보입니다. */
 const BAR_FULL = 200
+
+/** 타입 적성 격자 — 열여덟 종을 두 줄로 나눠 놓습니다. */
+const TYPE_TOP = STATUS.y + 128
+const TYPE_GAP = 29
+const TYPE_COL = 155
+const TYPE_BAR_LEFT = 52
+const TYPE_BAR_WIDTH = 62
+
+type Page = 'stats' | 'types'
 
 const COLOR_IDLE = '#e8dfc4'
 const COLOR_SELECTED = '#ffd447'
@@ -61,8 +72,16 @@ export class RaisingScene extends Phaser.Scene {
   private ageText!: Phaser.GameObjects.Text
   private conditionText!: Phaser.GameObjects.Text
   private statValues: Phaser.GameObjects.Text[] = []
+  private typeValues: Phaser.GameObjects.Text[] = []
   private bars!: Phaser.GameObjects.Graphics
+  private typeBars!: Phaser.GameObjects.Graphics
   private notice?: Phaser.GameObjects.Text
+
+  private page: Page = 'stats'
+  private statsPage: Phaser.GameObjects.GameObject[] = []
+  private typesPage: Phaser.GameObjects.GameObject[] = []
+  private tabs: { page: Page; text: Phaser.GameObjects.Text }[] = []
+  private tabUnderline!: Phaser.GameObjects.Graphics
 
   constructor() {
     super(SceneKey.Raising)
@@ -187,41 +206,143 @@ export class RaisingScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0)
 
+    this.createTabs()
+
     const divider = this.add.graphics()
     divider.lineStyle(1, GOLD, 0.6)
-    divider.lineBetween(STATUS.x + 20, STATUS.y + 88, STATUS.x + STATUS.width - 20, STATUS.y + 88)
+    divider.lineBetween(STATUS.x + 20, STATUS.y + 108, STATUS.x + STATUS.width - 20, STATUS.y + 108)
 
+    this.createStatsPage()
+    this.createTypesPage()
+    this.showPage('stats')
+  }
+
+  /** 능력치 / 타입 을 오가는 탭 */
+  private createTabs(): void {
+    const labels: ReadonlyArray<{ page: Page; label: string }> = [
+      { page: 'stats', label: '능력치' },
+      { page: 'types', label: '타입' },
+    ]
+
+    // 아래 두 열 바로 위에 벌려 놓으면 열 머리글처럼 읽힙니다. 가운데로
+    // 모으고 사이에 구분선을 두어 탭이라는 게 드러나게 합니다.
+    const center = STATUS.x + STATUS.width / 2
+    const y = STATUS.y + 88
+
+    this.add
+      .text(center, y, '|', { fontFamily: FontFamily.Body, fontSize: '16px', color: '#6c6488' })
+      .setOrigin(0.5)
+
+    labels.forEach((tab, index) => {
+      const x = center + (index === 0 ? -46 : 46)
+      const text = addChoice(this, x, y, tab.label, () => this.showPage(tab.page), {
+        fontSize: '18px',
+        color: COLOR_IDLE,
+        onFocus: () => undefined,
+      })
+      this.tabs.push({ page: tab.page, text })
+    })
+
+    this.tabUnderline = this.add.graphics()
+  }
+
+  private createStatsPage(): void {
     this.bars = this.add.graphics()
+    this.statsPage.push(this.bars)
 
-    STAT_LABELS.forEach((stat, index) => {
+    // 능력치 여섯 줄에 스트레스를 한 줄 덧붙입니다.
+    const rows = [...STAT_LABELS.map((s) => s.label), '스트레스']
+
+    rows.forEach((label, index) => {
       const y = BAR_TOP + index * BAR_GAP
 
-      this.add
-        .text(STATUS.x + 20, y, stat.label, {
-          fontFamily: FontFamily.Body,
-          fontSize: '17px',
-          color: COLOR_IDLE,
-        })
-        .setOrigin(0, 0.5)
-
-      this.statValues.push(
+      this.statsPage.push(
         this.add
-          .text(STATUS.x + STATUS.width - 20, y, '', {
+          .text(STATUS.x + 20, y, label, {
             fontFamily: FontFamily.Body,
-            fontSize: '17px',
-            color: '#ffd447',
+            fontSize: '16px',
+            color: label === '스트레스' ? '#e5a0a0' : COLOR_IDLE,
           })
-          .setOrigin(1, 0.5),
+          .setOrigin(0, 0.5),
       )
+
+      const value = this.add
+        .text(STATUS.x + STATUS.width - 20, y, '', {
+          fontFamily: FontFamily.Body,
+          fontSize: '16px',
+          color: '#ffd447',
+        })
+        .setOrigin(1, 0.5)
+
+      this.statValues.push(value)
+      this.statsPage.push(value)
     })
 
     this.conditionText = this.add
-      .text(STATUS.x + STATUS.width / 2, STATUS.y + STATUS.height - 44, '', {
+      .text(STATUS.x + STATUS.width / 2, STATUS.y + STATUS.height - 36, '', {
         fontFamily: FontFamily.Body,
         fontSize: '18px',
         color: '#a8d8b0',
       })
       .setOrigin(0.5, 0)
+    this.statsPage.push(this.conditionText)
+  }
+
+  private createTypesPage(): void {
+    this.typeBars = this.add.graphics()
+    this.typesPage.push(this.typeBars)
+
+    TYPES.forEach((type, index) => {
+      const column = index % 2
+      const row = Math.floor(index / 2)
+      const x = STATUS.x + 16 + column * TYPE_COL
+      const y = TYPE_TOP + row * TYPE_GAP
+
+      // 타입 이름과 숫자는 작게 찍히므로 픽셀 폰트를 피합니다.
+      this.typesPage.push(
+        this.add
+          .text(x, y, type.label, {
+            fontFamily: FontFamily.Plain,
+            fontSize: '13px',
+            color: COLOR_IDLE,
+          })
+          .setOrigin(0, 0.5),
+      )
+
+      const value = this.add
+        .text(x + 140, y, '', {
+          fontFamily: FontFamily.Plain,
+          fontSize: '13px',
+          color: '#ffd447',
+        })
+        .setOrigin(1, 0.5)
+
+      this.typeValues.push(value)
+      this.typesPage.push(value)
+    })
+  }
+
+  private showPage(page: Page): void {
+    this.page = page
+
+    this.statsPage.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(page === 'stats'))
+    this.typesPage.forEach((o) => (o as Phaser.GameObjects.Image).setVisible(page === 'types'))
+    this.tabs.forEach((tab) => tab.text.setColor(tab.page === page ? COLOR_SELECTED : COLOR_IDLE))
+
+    // 고른 탭 아래에 밑줄을 그어 어느 쪽을 보고 있는지 분명히 합니다.
+    const active = this.tabs.find((tab) => tab.page === page)?.text
+    this.tabUnderline.clear()
+    if (active) {
+      this.tabUnderline.lineStyle(2, 0xffd447, 1)
+      this.tabUnderline.lineBetween(
+        active.x - active.displayWidth / 2,
+        active.y + 15,
+        active.x + active.displayWidth / 2,
+        active.y + 15,
+      )
+    }
+
+    this.refresh()
   }
 
   private createCommands(): void {
@@ -255,7 +376,7 @@ export class RaisingScene extends Phaser.Scene {
     })
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 14, '← → 명령    Enter 실행    Esc 메뉴로', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 14, '← → 명령    Enter 실행    Tab 능력치/타입    Esc 메뉴로', {
         fontFamily: FontFamily.Body,
         fontSize: '15px',
         color: '#7c6a4a',
@@ -283,6 +404,11 @@ export class RaisingScene extends Phaser.Scene {
     keyboard.on('keydown-ENTER', () => this.commands[this.selected]?.run())
     keyboard.on('keydown-SPACE', () => this.commands[this.selected]?.run())
     keyboard.on('keydown-ESC', () => this.scene.start(SceneKey.Menu))
+    // 오른쪽 판을 능력치 / 타입 사이에서 넘깁니다.
+    keyboard.on('keydown-TAB', (event: KeyboardEvent) => {
+      event.preventDefault()
+      this.showPage(this.page === 'stats' ? 'types' : 'stats')
+    })
   }
 
   private move(delta: number): void {
@@ -325,25 +451,65 @@ export class RaisingScene extends Phaser.Scene {
     )
     this.conditionText.setText(`컨디션 ${conditionLabel(this.state.condition)}`)
 
+    this.drawStatBars()
+    this.drawTypeBars()
+
+    this.buttons.forEach((button, index) => {
+      button.setColor(index === this.selected ? COLOR_SELECTED : COLOR_IDLE)
+    })
+  }
+
+  private drawStatBars(): void {
     this.bars.clear()
-    STAT_LABELS.forEach((stat, index) => {
-      const value = this.state.stats[stat.key]
+    if (this.page !== 'stats') return
+
+    const rows: ReadonlyArray<{ value: number; full: number; color: number }> = [
+      ...STAT_LABELS.map((stat) => ({
+        value: this.state.stats[stat.key],
+        full: BAR_FULL,
+        color: 0xffd447,
+      })),
+      // 스트레스는 낮을수록 좋으니 색을 달리해 눈에 띄게 둡니다.
+      { value: this.state.stress, full: 100, color: 0xe06666 },
+    ]
+
+    rows.forEach((row, index) => {
       const y = BAR_TOP + index * BAR_GAP
 
       this.bars.fillStyle(0x0d0b1a, 0.85)
       this.bars.fillRect(BAR_LEFT, y - 7, BAR_WIDTH, 14)
 
-      this.bars.fillStyle(0xffd447, 1)
-      this.bars.fillRect(BAR_LEFT, y - 7, BAR_WIDTH * Math.min(1, value / BAR_FULL), 14)
+      this.bars.fillStyle(row.color, 1)
+      this.bars.fillRect(BAR_LEFT, y - 7, BAR_WIDTH * Math.min(1, row.value / row.full), 14)
 
       this.bars.lineStyle(1, GOLD, 0.8)
       this.bars.strokeRect(BAR_LEFT, y - 7, BAR_WIDTH, 14)
 
-      this.statValues[index]?.setText(`${value}`)
+      this.statValues[index]?.setText(`${row.value}`)
     })
+  }
 
-    this.buttons.forEach((button, index) => {
-      button.setColor(index === this.selected ? COLOR_SELECTED : COLOR_IDLE)
+  private drawTypeBars(): void {
+    this.typeBars.clear()
+    if (this.page !== 'types') return
+
+    TYPES.forEach((type, index) => {
+      const column = index % 2
+      const row = Math.floor(index / 2)
+      const x = STATUS.x + 16 + column * TYPE_COL + TYPE_BAR_LEFT
+      const y = TYPE_TOP + row * TYPE_GAP
+      const value = this.state.types[type.key] ?? 0
+
+      this.typeBars.fillStyle(0x0d0b1a, 0.85)
+      this.typeBars.fillRect(x, y - 6, TYPE_BAR_WIDTH, 12)
+
+      this.typeBars.fillStyle(type.color, 1)
+      this.typeBars.fillRect(x, y - 6, TYPE_BAR_WIDTH * Math.min(1, value / TYPE_MAX), 12)
+
+      this.typeBars.lineStyle(1, GOLD, 0.6)
+      this.typeBars.strokeRect(x, y - 6, TYPE_BAR_WIDTH, 12)
+
+      this.typeValues[index]?.setText(`${value}`)
     })
   }
 
