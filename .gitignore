@@ -16,3 +16,9 @@ public/assets/pokemon/artwork/*
 !public/assets/pokemon/portrait/
 public/assets/pokemon/portrait/*
 !public/assets/pokemon/portrait/0493-아르세우스.png
+
+# 내려받은 울음소리 1025개 (약 17MB). npm run fetch:cries 로 다시 받습니다.
+# 게임이 실제로 재생하는 것만 저장소에 둡니다.
+public/sfx/voice/*
+!public/sfx/voice/0493-아르세우스.ogg
+!public/sfx/voice/0132-메타몽.ogg

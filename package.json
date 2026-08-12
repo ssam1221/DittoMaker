@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "fetch:pokemon": "node scripts/fetch-pokemon.mjs",
-    "make:portraits": "node scripts/make-portraits.mjs"
+    "make:portraits": "node scripts/make-portraits.mjs",
+    "fetch:cries": "node scripts/fetch-cries.mjs"
   },
   "dependencies": {
     "phaser": "^4.2.1"

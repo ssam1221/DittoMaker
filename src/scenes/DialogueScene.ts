@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 
 import { playBgm } from '../audio/bgm'
+import { cryPath, playSfx } from '../audio/sfx'
 import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, MusicFile, SceneKey } from '../constants'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
@@ -8,6 +9,9 @@ import { createPokemonFrame } from '../ui/pokemonFrame'
 
 const ARCEUS = { no: 493, file: '0493-아르세우스' }
 const DITTO = { no: 132, file: '0132-메타몽' }
+
+/** 울음소리 키 — 그림 키와 겹치지 않게 접두사를 붙입니다. */
+const cryKey = (file: string): string => `cry-${file}`
 
 const INFO_KEY = 'pokemon-info'
 const SPACE_KEY = 'space'
@@ -95,6 +99,9 @@ export class DialogueScene extends Phaser.Scene {
     this.load.image(PORTRAIT_KEY, `assets/pokemon/portrait/${ARCEUS.file}.png`)
     this.load.json(INFO_KEY, 'data/pokemon-info.json')
 
+    this.load.audio(cryKey(ARCEUS.file), cryPath(ARCEUS.file))
+    this.load.audio(cryKey(DITTO.file), cryPath(DITTO.file))
+
     // 5MB 가 넘어서 부팅 때 받지 않고 이 씬에 들어올 때 받습니다.
     // 파일명에 공백이 있어 URL 로 안전하게 바꿔 넘깁니다.
     this.load.audio(AudioKey.Coronet, `music/${encodeURIComponent(MusicFile.Coronet)}`)
@@ -110,6 +117,9 @@ export class DialogueScene extends Phaser.Scene {
     this.createStage()
     this.createBox()
     this.bindInput()
+
+    // 말을 꺼내는 순간에 맞춰 한 번 웁니다.
+    playSfx(this, cryKey(ARCEUS.file))
 
     this.showLine()
     this.cameras.main.fadeIn(600, 0, 0, 0)
@@ -276,6 +286,9 @@ export class DialogueScene extends Phaser.Scene {
     ditto.setScale((BOX.y - 60) / ditto.height / 2.4)
     ditto.setAlpha(0)
     this.ditto = ditto
+
+    // 나타나면서 저도 한 번 웁니다.
+    playSfx(this, cryKey(DITTO.file))
 
     this.tweens.add({
       targets: ditto,
