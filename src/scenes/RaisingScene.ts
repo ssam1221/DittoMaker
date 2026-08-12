@@ -98,7 +98,13 @@ export class RaisingScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser 는 씬 인스턴스를 다시 씁니다. 여기서 비우지 않으면 지난번에
+    // 파괴된 오브젝트가 배열에 남아, 다시 들어올 때 그것들을 만지다 터집니다.
     this.statValues = []
+    this.typeValues = []
+    this.statsPage = []
+    this.typesPage = []
+    this.tabs = []
     this.buttons = []
     this.selected = 0
 
@@ -349,7 +355,7 @@ export class RaisingScene extends Phaser.Scene {
     this.commands = [
       { label: '훈련', run: () => this.notImplemented('훈련') },
       { label: '모험', run: () => this.notImplemented('모험') },
-      { label: '상점', run: () => this.notImplemented('상점') },
+      { label: '마을', run: () => this.goVillage() },
       { label: '대화', run: () => this.notImplemented('대화') },
       { label: '휴식', run: () => this.doRest() },
       { label: '저장', run: () => this.doSave() },
@@ -421,6 +427,14 @@ export class RaisingScene extends Phaser.Scene {
     this.state = rest(this.state)
     this.refresh()
     this.showNotice('한 주를 쉬었습니다')
+  }
+
+  /** 지금까지의 진행을 들고 마을로 나갑니다. 돌아오면 그대로 이어집니다. */
+  private goVillage(): void {
+    this.cameras.main.fadeOut(250, 0, 0, 0)
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start(SceneKey.Village, { ...this.save, raising: this.state })
+    })
   }
 
   private doSave(): void {

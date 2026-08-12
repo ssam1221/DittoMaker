@@ -9,6 +9,7 @@ import { RaisingScene } from './scenes/RaisingScene'
 import { SaveSlotScene } from './scenes/SaveSlotScene'
 import { SettingsScene } from './scenes/SettingsScene'
 import { SetupScene } from './scenes/SetupScene'
+import { VillageScene } from './scenes/VillageScene'
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -37,6 +38,7 @@ const config: Phaser.Types.Core.GameConfig = {
     SetupScene,
     DialogueScene,
     RaisingScene,
+    VillageScene,
     GameScene,
   ],
 }
