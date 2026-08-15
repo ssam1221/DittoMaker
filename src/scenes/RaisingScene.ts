@@ -532,7 +532,7 @@ export class RaisingScene extends Phaser.Scene {
       { label: '일정', run: () => this.openSchedule() },
       { label: '마을', run: () => this.goVillage() },
       { label: '대화', run: () => this.notImplemented('대화') },
-      { label: '휴식', run: () => this.doRest() },
+      // 휴식은 이번 주에 무엇을 할지 고르는 일정 창 안에 있습니다.
       { label: '저장', run: () => this.doSave() },
     ]
 
