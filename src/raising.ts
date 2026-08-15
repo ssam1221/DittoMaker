@@ -13,6 +13,12 @@ export const WEEKS_PER_YEAR = WEEKS_PER_MONTH * MONTHS_PER_YEAR
 /** 아르세우스가 말한 열 해 */
 export const TOTAL_YEARS = 10
 
+/**
+ * 육성이 시작되는 달. 생일과 무관하게 언제나 여기서 출발합니다.
+ * 봄에 시작해야 첫 화면의 창밖도 꽃이 핀 풍경이 됩니다.
+ */
+export const START_MONTH = 3
+
 export const STAT_MAX = 999
 
 /** 타입 적성의 최대치 */
@@ -133,11 +139,16 @@ export interface GameDate {
   week: number
 }
 
-/** 시작 연도와 지난 주 수로 지금 날짜를 구합니다. */
+/**
+ * 시작 연도와 지난 주 수로 지금 날짜를 구합니다.
+ * 0주차는 START_MONTH 의 1주차이고, 달을 넘기다 해가 바뀌면 연도도 오릅니다.
+ */
 export function dateOf(startYear: number, week: number): GameDate {
+  const monthsElapsed = START_MONTH - 1 + Math.floor(week / WEEKS_PER_MONTH)
+
   return {
-    year: startYear + Math.floor(week / WEEKS_PER_YEAR),
-    month: (Math.floor(week / WEEKS_PER_MONTH) % MONTHS_PER_YEAR) + 1,
+    year: startYear + Math.floor(monthsElapsed / MONTHS_PER_YEAR),
+    month: (monthsElapsed % MONTHS_PER_YEAR) + 1,
     week: (week % WEEKS_PER_MONTH) + 1,
   }
 }
