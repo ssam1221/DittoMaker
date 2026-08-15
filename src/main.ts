@@ -4,7 +4,7 @@ import { GAME_HEIGHT, GAME_WIDTH } from './constants'
 import { BootScene } from './scenes/BootScene'
 import { DialogueScene } from './scenes/DialogueScene'
 import { GameScene } from './scenes/GameScene'
-import { LessonScene } from './scenes/LessonScene'
+import { ActivityScene } from './scenes/ActivityScene'
 import { MenuScene } from './scenes/MenuScene'
 import { RaisingScene } from './scenes/RaisingScene'
 import { SaveSlotScene } from './scenes/SaveSlotScene'
@@ -40,7 +40,7 @@ const config: Phaser.Types.Core.GameConfig = {
     DialogueScene,
     RaisingScene,
     VillageScene,
-    LessonScene,
+    ActivityScene,
     GameScene,
   ],
 }

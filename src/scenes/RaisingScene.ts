@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 
+import type { ActivityKind } from '../activities'
 import { playBgm } from '../audio/bgm'
 import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, MusicFile, SceneKey } from '../constants'
 import {
@@ -645,8 +646,8 @@ export class RaisingScene extends Phaser.Scene {
     this.popup = openMenu(this, {
       title: '이번 주 일정',
       items: [
-        { label: '배우러 가기', run: () => this.afterPopup(() => this.goLesson()) },
-        { label: '일시키기', run: () => this.afterPopup(() => this.notImplemented('일')) },
+        { label: '배우러 가기', run: () => this.afterPopup(() => this.goActivity('lesson')) },
+        { label: '일시키기', run: () => this.afterPopup(() => this.goActivity('job')) },
         { label: '모험', run: () => this.afterPopup(() => this.notImplemented('모험')) },
         { label: '휴식', run: () => this.afterPopup(() => this.doRest()) },
         { label: '뒤로', run: () => this.afterPopup(() => undefined) },
@@ -663,11 +664,11 @@ export class RaisingScene extends Phaser.Scene {
     run()
   }
 
-  /** 배우러 나갑니다. 진행 상태를 들고 갔다가 그대로 되돌려 받습니다. */
-  private goLesson(): void {
+  /** 배우러 또는 일하러 나갑니다. 진행 상태를 들고 갔다가 되돌려 받습니다. */
+  private goActivity(kind: ActivityKind): void {
     this.cameras.main.fadeOut(250, 0, 0, 0)
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.start(SceneKey.Lesson, { ...this.save, raising: this.state })
+      this.scene.start(SceneKey.Activity, { ...this.save, raising: this.state, kind })
     })
   }
 

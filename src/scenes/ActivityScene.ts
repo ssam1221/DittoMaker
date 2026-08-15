@@ -1,7 +1,14 @@
 import Phaser from 'phaser'
 
+import {
+  canAfford,
+  doActivity,
+  JOBS,
+  LESSONS,
+  type Activity,
+  type ActivityKind,
+} from '../activities'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
-import { canAfford, LESSONS, takeLesson, type Lesson } from '../lessons'
 import { ensureRaisingState, TYPES, type RaisingState } from '../raising'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
@@ -17,21 +24,30 @@ const GRID_TOP = PANEL.y + 74
 
 const COLOR_IDLE = '#e8dfc4'
 const COLOR_SELECTED = '#ffd447'
-const COLOR_UNAFFORDABLE = '#8a7a6a'
+const COLOR_BLOCKED = '#8a7a6a'
 
-/** 타입 이름과 색을 빠르게 찾기 위한 표 */
 const TYPE_INFO = new Map(TYPES.map((t) => [t.key, t]))
 
+const HEADINGS: Record<ActivityKind, { title: string; verb: string }> = {
+  lesson: { title: '무엇을 배우러 갈까요?', verb: '배우기' },
+  job: { title: '어떤 일을 할까요?', verb: '일하기' },
+}
+
+export interface ActivitySceneData extends SaveData {
+  kind: ActivityKind
+}
+
 /**
- * 배우러 갈 곳을 고르는 화면입니다.
- * 무엇을 배우면 어떤 타입에 익숙해지는지 함께 보여 줍니다.
+ * 한 주를 무엇에 쓸지 고르는 화면입니다.
+ * 수업과 일은 화면이 같아서 한 씬으로 함께 다룹니다.
  */
-export class LessonScene extends Phaser.Scene {
+export class ActivityScene extends Phaser.Scene {
   private save!: SaveData
   private state!: RaisingState
+  private kind: ActivityKind = 'lesson'
+  private list: readonly Activity[] = LESSONS
 
   private labels: Phaser.GameObjects.Text[] = []
-  private badges: Phaser.GameObjects.Graphics[] = []
   private selected = 0
 
   private moneyText!: Phaser.GameObjects.Text
@@ -39,24 +55,25 @@ export class LessonScene extends Phaser.Scene {
   private notice?: Phaser.GameObjects.Text
 
   constructor() {
-    super(SceneKey.Lesson)
+    super(SceneKey.Activity)
   }
 
-  init(data: SaveData): void {
+  init(data: ActivitySceneData): void {
     this.save = data
     this.state = ensureRaisingState(data.raising)
+    this.kind = data.kind ?? 'lesson'
+    this.list = this.kind === 'job' ? JOBS : LESSONS
   }
 
   create(): void {
     this.labels = []
-    this.badges = []
     this.selected = 0
 
     drawParchmentFrame(this)
     drawInnerPanel(this, PANEL, PanelColor.Night)
 
     this.add
-      .text(PANEL.x + 26, PANEL.y + 18, '무엇을 배우러 갈까요?', {
+      .text(PANEL.x + 26, PANEL.y + 18, HEADINGS[this.kind].title, {
         fontFamily: FontFamily.Body,
         fontSize: '22px',
         color: '#f6efdc',
@@ -71,7 +88,7 @@ export class LessonScene extends Phaser.Scene {
       })
       .setOrigin(1, 0)
 
-    LESSONS.forEach((lesson, index) => this.createRow(lesson, index))
+    this.list.forEach((activity, index) => this.createRow(activity, index))
 
     this.detail = this.add
       .text(GAME_WIDTH / 2, PANEL.y + PANEL.height + 22, '', {
@@ -89,11 +106,12 @@ export class LessonScene extends Phaser.Scene {
     })
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, '방향키 이동    Enter 배우기    Esc 돌아가기', {
-        fontFamily: FontFamily.Body,
-        fontSize: '15px',
-        color: '#7c6a4a',
-      })
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT - 16,
+        `방향키 이동    Enter ${HEADINGS[this.kind].verb}    Esc 돌아가기`,
+        { fontFamily: FontFamily.Body, fontSize: '15px', color: '#7c6a4a' },
+      )
       .setOrigin(0.5, 1)
 
     this.bindKeyboard()
@@ -101,21 +119,24 @@ export class LessonScene extends Phaser.Scene {
     this.cameras.main.fadeIn(250, 0, 0, 0)
   }
 
-  private createRow(lesson: Lesson, index: number): void {
+  private createRow(activity: Activity, index: number): void {
     const column = index % COLUMNS
     const row = Math.floor(index / COLUMNS)
     const x = GRID_LEFT + column * COLUMN_WIDTH
     const y = GRID_TOP + row * ROW_GAP
 
+    // 버는 돈은 +, 내는 돈은 그대로 금액만 보입니다.
+    const money = activity.money >= 0 ? `+₽${activity.money}` : `₽${-activity.money}`
+
     const label = addChoice(
       this,
       x,
       y,
-      `${lesson.name}   ₽${lesson.cost}`,
+      `${activity.name}   ${money}`,
       () => {
         this.selected = index
         this.refresh()
-        this.learn(lesson)
+        this.perform(activity)
       },
       {
         fontSize: '19px',
@@ -131,16 +152,16 @@ export class LessonScene extends Phaser.Scene {
 
     // 오르는 타입을 색 조각으로 붙여 한눈에 보이게 합니다.
     const badge = this.add.graphics()
-    lesson.types.forEach((type, i) => {
+    activity.types.forEach((type, i) => {
       const info = TYPE_INFO.get(type)
       if (!info) return
 
+      const bx = x + COLUMN_WIDTH - 92 + i * 22
       badge.fillStyle(info.color, 1)
-      badge.fillRect(x + COLUMN_WIDTH - 92 + i * 22, y - 7, 18, 14)
+      badge.fillRect(bx, y - 7, 18, 14)
       badge.lineStyle(1, 0x000000, 0.35)
-      badge.strokeRect(x + COLUMN_WIDTH - 92 + i * 22, y - 7, 18, 14)
+      badge.strokeRect(bx, y - 7, 18, 14)
     })
-    this.badges.push(badge)
   }
 
   private bindKeyboard(): void {
@@ -150,51 +171,57 @@ export class LessonScene extends Phaser.Scene {
     keyboard.on('keydown-DOWN', () => this.move(COLUMNS))
     keyboard.on('keydown-LEFT', () => this.move(-1))
     keyboard.on('keydown-RIGHT', () => this.move(1))
-    keyboard.on('keydown-ENTER', () => this.learn(LESSONS[this.selected]!))
-    keyboard.on('keydown-SPACE', () => this.learn(LESSONS[this.selected]!))
+    keyboard.on('keydown-ENTER', () => this.perform(this.list[this.selected]!))
+    keyboard.on('keydown-SPACE', () => this.perform(this.list[this.selected]!))
     keyboard.on('keydown-ESC', () => this.leave())
   }
 
   private move(delta: number): void {
-    const count = LESSONS.length
+    const count = this.list.length
     this.selected = (this.selected + delta + count) % count
     this.refresh()
   }
 
-  private learn(lesson: Lesson): void {
-    if (!canAfford(this.state, lesson)) {
-      this.showNotice(`수업료가 모자랍니다 (₽${lesson.cost})`)
+  private perform(activity: Activity): void {
+    if (!canAfford(this.state, activity)) {
+      this.showNotice(`수업료가 모자랍니다 (₽${-activity.money})`)
       return
     }
 
-    const result = takeLesson(this.state, lesson)
+    const result = doActivity(this.state, activity)
     this.state = result.state
 
-    // 배우고 나면 한 주가 지났으니 방으로 돌아갑니다.
     const gains = result.typeGains
       .map((g) => `${TYPE_INFO.get(g.type)?.label ?? g.type} +${g.gain}`)
       .join('  ')
 
-    this.leave(`${withJosa(lesson.name, '을', '를')} 배웠다.   ${gains}`)
+    // "도서관 정리를 일했다" 는 말이 안 되므로 일 쪽은 "했다" 로 받습니다.
+    const verb = activity.kind === 'job' ? '했다' : '배웠다'
+    const earned = activity.money > 0 ? `  ₽+${activity.money}` : ''
+
+    // 한 주가 지났으니 방으로 돌아갑니다.
+    this.leave(`${withJosa(activity.name, '을', '를')} ${verb}.   ${gains}${earned}`)
   }
 
   private refresh(): void {
     this.moneyText.setText(`₽ ${this.state.money.toLocaleString()}`)
 
     this.labels.forEach((label, index) => {
-      const lesson = LESSONS[index]!
-      const affordable = canAfford(this.state, lesson)
+      const activity = this.list[index]!
+      const ok = canAfford(this.state, activity)
 
       label.setColor(
-        index === this.selected ? COLOR_SELECTED : affordable ? COLOR_IDLE : COLOR_UNAFFORDABLE,
+        index === this.selected ? COLOR_SELECTED : ok ? COLOR_IDLE : COLOR_BLOCKED,
       )
     })
 
-    const lesson = LESSONS[this.selected]
-    if (!lesson) return
+    const activity = this.list[this.selected]
+    if (!activity) return
 
-    const types = lesson.types.map((t) => TYPE_INFO.get(t)?.label ?? t).join(' · ')
-    this.detail.setText(`${lesson.description}    [ ${types} ]    스트레스 +${lesson.stress}`)
+    const types = activity.types.map((t) => TYPE_INFO.get(t)?.label ?? t).join(' · ')
+    this.detail.setText(
+      `${activity.description}    [ ${types} ]    스트레스 +${activity.stress}`,
+    )
   }
 
   private showNotice(message: string): void {
@@ -217,7 +244,7 @@ export class LessonScene extends Phaser.Scene {
     })
   }
 
-  /** 방으로 돌아갑니다. 배우고 나온 경우에는 결과를 함께 전합니다. */
+  /** 방으로 돌아갑니다. 하고 나온 경우에는 결과를 함께 전합니다. */
   private leave(notice?: string): void {
     this.cameras.main.fadeOut(250, 0, 0, 0)
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
