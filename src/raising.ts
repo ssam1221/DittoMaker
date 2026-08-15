@@ -128,6 +128,23 @@ export function dateOf(startYear: number, week: number): GameDate {
   }
 }
 
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
+
+export const SEASON_LABELS: Record<Season, string> = {
+  spring: '봄',
+  summer: '여름',
+  autumn: '가을',
+  winter: '겨울',
+}
+
+/** 3~5 봄, 6~8 여름, 9~11 가을, 12~2 겨울 */
+export function seasonOf(month: number): Season {
+  if (month >= 3 && month <= 5) return 'spring'
+  if (month >= 6 && month <= 8) return 'summer'
+  if (month >= 9 && month <= 11) return 'autumn'
+  return 'winter'
+}
+
 /** 태어난 뒤 지난 개월 수 */
 export function ageInMonths(week: number): number {
   return Math.floor(week / WEEKS_PER_MONTH)

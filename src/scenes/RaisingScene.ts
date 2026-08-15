@@ -8,13 +8,17 @@ import {
   dateOf,
   ensureRaisingState,
   rest,
+  SEASON_LABELS,
+  seasonOf,
   STAT_LABELS,
+  type Season,
   TYPE_MAX,
   TYPES,
   type RaisingState,
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
+import { drawWindowView } from '../ui/window'
 
 const DITTO_KEY = '0132-메타몽'
 
@@ -23,6 +27,9 @@ const HEADER = { x: 20, y: 16, width: GAME_WIDTH - 40, height: 36 }
 
 /** 메타몽이 있는 방 */
 const ROOM = { x: 20, y: 64, width: 570, height: 386 }
+
+/** 창문. 계절에 따라 안쪽 풍경만 다시 그립니다. */
+const WINDOW = { x: 76, y: 100, width: 168, height: 120 }
 
 /** 오른쪽 상태 판 */
 const STATUS = { x: 606, y: 64, width: GAME_WIDTH - 626, height: 386 }
@@ -75,6 +82,9 @@ export class RaisingScene extends Phaser.Scene {
   private typeValues: Phaser.GameObjects.Text[] = []
   private bars!: Phaser.GameObjects.Graphics
   private typeBars!: Phaser.GameObjects.Graphics
+  private windowView!: Phaser.GameObjects.Graphics
+  /** 지금 창밖에 그려져 있는 계절 */
+  private drawnSeason?: Season
   private notice?: Phaser.GameObjects.Text
 
   private page: Page = 'stats'
@@ -107,6 +117,8 @@ export class RaisingScene extends Phaser.Scene {
     this.tabs = []
     this.buttons = []
     this.selected = 0
+    // 이 값이 남아 있으면 다시 들어왔을 때 창밖을 그리지 않고 넘어갑니다.
+    this.drawnSeason = undefined
 
     playBgm(this, AudioKey.Town)
 
@@ -145,42 +157,19 @@ export class RaisingScene extends Phaser.Scene {
 
   /** 창문과 바닥이 있는 방. 그림 파일 없이 도형으로 그립니다. */
   private createRoom(): void {
-    const g = this.add.graphics()
-
     const floorY = ROOM.y + ROOM.height * 0.62
 
-    g.fillStyle(0x2f3560, 1)
-    g.fillRect(ROOM.x, ROOM.y, ROOM.width, floorY - ROOM.y)
-    g.fillStyle(0x4a3f6b, 1)
-    g.fillRect(ROOM.x, floorY, ROOM.width, ROOM.y + ROOM.height - floorY)
+    this.drawWalls(floorY)
 
-    // 창문 — 오프닝의 우주와 이어지도록 밤하늘을 담았습니다.
-    const win = { x: ROOM.x + 60, y: ROOM.y + 44, w: 150, h: 110 }
-    g.fillStyle(0x141026, 1)
-    g.fillRect(win.x, win.y, win.w, win.h)
-    g.lineStyle(4, GOLD, 1)
-    g.strokeRect(win.x, win.y, win.w, win.h)
-    g.lineBetween(win.x + win.w / 2, win.y, win.x + win.w / 2, win.y + win.h)
-    g.lineBetween(win.x, win.y + win.h / 2, win.x + win.w, win.y + win.h / 2)
+    // 창밖 풍경은 계절이 바뀌면 다시 그려야 하므로 따로 둡니다.
+    this.windowView = this.add.graphics()
+    this.drawWindowFrame()
 
-    g.fillStyle(0xffffff, 0.9)
-    for (let i = 0; i < 18; i += 1) {
-      const x = win.x + 8 + ((i * 37) % (win.w - 16))
-      const y = win.y + 10 + ((i * 53) % (win.h - 20))
-      g.fillCircle(x, y, i % 4 === 0 ? 1.8 : 1)
-    }
+    this.drawWallDecor()
+    this.drawFloorDecor(floorY)
 
-    // 바닥 깔개
-    g.fillStyle(0x6b4a7a, 0.6)
-    g.fillEllipse(ROOM.x + ROOM.width * 0.55, floorY + 90, 300, 80)
-
-    g.lineStyle(3, GOLD, 1)
-    g.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height)
-    g.lineStyle(1, GOLD_LIGHT, 0.8)
-    g.strokeRect(ROOM.x + 5, ROOM.y + 5, ROOM.width - 10, ROOM.height - 10)
-
-    const ditto = this.add.image(ROOM.x + ROOM.width * 0.55, floorY + 40, DITTO_KEY)
-    ditto.setScale(190 / ditto.height)
+    const ditto = this.add.image(ROOM.x + ROOM.width * 0.55, floorY + 34, DITTO_KEY)
+    ditto.setScale(180 / ditto.height)
 
     this.tweens.add({
       targets: ditto,
@@ -191,6 +180,187 @@ export class RaisingScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     })
+
+    // 방 테두리는 안에 놓인 것들 위에 그려야 깔끔하게 잘립니다.
+    const border = this.add.graphics()
+    border.lineStyle(3, GOLD, 1)
+    border.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height)
+    border.lineStyle(1, GOLD_LIGHT, 0.8)
+    border.strokeRect(ROOM.x + 5, ROOM.y + 5, ROOM.width - 10, ROOM.height - 10)
+  }
+
+  /** 벽지와 바닥, 그리고 둘이 만나는 굽도리 */
+  private drawWalls(floorY: number): void {
+    const g = this.add.graphics()
+
+    g.fillStyle(0x3a4070, 1)
+    g.fillRect(ROOM.x, ROOM.y, ROOM.width, floorY - ROOM.y)
+
+    // 벽지 줄무늬 — 벽이 밋밋해 보이지 않을 만큼만 옅게 넣습니다.
+    g.fillStyle(0xffffff, 0.04)
+    for (let x = ROOM.x + 14; x < ROOM.x + ROOM.width; x += 28) {
+      g.fillRect(x, ROOM.y, 12, floorY - ROOM.y)
+    }
+
+    g.fillStyle(0x6b5a48, 1)
+    g.fillRect(ROOM.x, floorY, ROOM.width, ROOM.y + ROOM.height - floorY)
+
+    // 마룻바닥 결
+    g.lineStyle(1, 0x000000, 0.14)
+    for (let y = floorY + 18; y < ROOM.y + ROOM.height; y += 22) {
+      g.lineBetween(ROOM.x, y, ROOM.x + ROOM.width, y)
+    }
+
+    g.fillStyle(0x8a7a62, 1)
+    g.fillRect(ROOM.x, floorY - 10, ROOM.width, 10)
+  }
+
+  private drawWindowFrame(): void {
+    const g = this.add.graphics()
+
+    // 창틀은 풍경 위에 얹습니다.
+    g.lineStyle(5, 0x8a7a62, 1)
+    g.strokeRect(WINDOW.x, WINDOW.y, WINDOW.width, WINDOW.height)
+    g.lineStyle(3, 0x8a7a62, 1)
+    g.lineBetween(
+      WINDOW.x + WINDOW.width / 2,
+      WINDOW.y,
+      WINDOW.x + WINDOW.width / 2,
+      WINDOW.y + WINDOW.height,
+    )
+    g.lineBetween(
+      WINDOW.x,
+      WINDOW.y + WINDOW.height / 2,
+      WINDOW.x + WINDOW.width,
+      WINDOW.y + WINDOW.height / 2,
+    )
+
+    // 창턱
+    g.fillStyle(0x8a7a62, 1)
+    g.fillRect(WINDOW.x - 8, WINDOW.y + WINDOW.height, WINDOW.width + 16, 7)
+  }
+
+  private drawWallDecor(): void {
+    const g = this.add.graphics()
+
+    // 액자 — 아르세우스를 만난 밤을 담아 둔 그림
+    const frame = { x: ROOM.x + 268, y: ROOM.y + 52, w: 84, h: 64 }
+    g.fillStyle(0x8a7a62, 1)
+    g.fillRect(frame.x - 4, frame.y - 4, frame.w + 8, frame.h + 8)
+    g.fillStyle(0x141026, 1)
+    g.fillRect(frame.x, frame.y, frame.w, frame.h)
+    g.fillStyle(0xffffff, 0.9)
+    for (const [fx, fy] of [
+      [0.2, 0.3],
+      [0.5, 0.2],
+      [0.72, 0.44],
+      [0.35, 0.62],
+      [0.85, 0.7],
+    ] as ReadonlyArray<readonly [number, number]>) {
+      g.fillCircle(frame.x + frame.w * fx, frame.y + frame.h * fy, 1.4)
+    }
+    g.fillStyle(0xf0e6c8, 1)
+    g.fillCircle(frame.x + frame.w * 0.6, frame.y + frame.h * 0.5, 5)
+
+    // 선반과 그 위의 물건들
+    const shelfY = ROOM.y + 96
+    g.fillStyle(0x8a7a62, 1)
+    g.fillRect(ROOM.x + 400, shelfY, 132, 8)
+
+    // 약병 둘
+    g.fillStyle(0xe06666, 1)
+    g.fillRect(ROOM.x + 414, shelfY - 26, 14, 26)
+    g.fillStyle(0xd8cdb8, 1)
+    g.fillRect(ROOM.x + 416, shelfY - 32, 10, 7)
+
+    g.fillStyle(0x6bb8e0, 1)
+    g.fillRect(ROOM.x + 438, shelfY - 20, 12, 20)
+    g.fillStyle(0xd8cdb8, 1)
+    g.fillRect(ROOM.x + 440, shelfY - 25, 8, 6)
+
+    // 책 세 권
+    for (const [offset, height, color] of [
+      [472, 30, 0x8a6fbf],
+      [482, 26, 0xd8a03f],
+      [492, 32, 0x5fa36b],
+    ] as ReadonlyArray<readonly [number, number, number]>) {
+      g.fillStyle(color, 1)
+      g.fillRect(ROOM.x + offset, shelfY - height, 8, height)
+    }
+
+    // 벽에 걸린 시계
+    const clock = { x: ROOM.x + 520, y: ROOM.y + 46 }
+    g.fillStyle(0x8a7a62, 1)
+    g.fillCircle(clock.x, clock.y, 19)
+    g.fillStyle(0xf0e6c8, 1)
+    g.fillCircle(clock.x, clock.y, 15)
+    g.lineStyle(2, 0x3a3020, 1)
+    g.lineBetween(clock.x, clock.y, clock.x, clock.y - 9)
+    g.lineBetween(clock.x, clock.y, clock.x + 7, clock.y + 3)
+  }
+
+  private drawFloorDecor(floorY: number): void {
+    const g = this.add.graphics()
+
+    // 깔개
+    g.fillStyle(0x7a5a8a, 0.75)
+    g.fillEllipse(ROOM.x + ROOM.width * 0.55, floorY + 92, 320, 96)
+    g.fillStyle(0x9a76a8, 0.5)
+    g.fillEllipse(ROOM.x + ROOM.width * 0.55, floorY + 92, 240, 68)
+
+    // 왼쪽 협탁과 등불
+    const table = { x: ROOM.x + 44, y: floorY + 26, w: 84, h: 54 }
+    g.fillStyle(0x7a6248, 1)
+    g.fillRect(table.x, table.y, table.w, table.h)
+    g.fillStyle(0x5e4a36, 1)
+    g.fillRect(table.x, table.y, table.w, 8)
+
+    g.fillStyle(0x4a3f34, 1)
+    g.fillRect(table.x + 36, table.y - 16, 8, 16)
+    g.fillStyle(0xf0d78a, 1)
+    g.fillTriangle(
+      table.x + 40,
+      table.y - 44,
+      table.x + 18,
+      table.y - 16,
+      table.x + 62,
+      table.y - 16,
+    )
+    // 등불 빛. 한 겹으로 칠하면 원판처럼 보여서, 옅게 여러 겹 겹칩니다.
+    for (const [radius, alpha] of [
+      [54, 0.05],
+      [40, 0.06],
+      [26, 0.08],
+      [14, 0.1],
+    ] as ReadonlyArray<readonly [number, number]>) {
+      g.fillStyle(0xffe9a8, alpha)
+      g.fillCircle(table.x + 40, table.y - 26, radius)
+    }
+
+    // 오른쪽 화분
+    const pot = { x: ROOM.x + 494, y: floorY + 74 }
+    g.fillStyle(0x5fa36b, 1)
+    g.fillEllipse(pot.x, pot.y - 34, 54, 46)
+    g.fillEllipse(pot.x - 18, pot.y - 20, 34, 30)
+    g.fillEllipse(pot.x + 18, pot.y - 22, 30, 28)
+    g.fillStyle(0xb0714a, 1)
+    g.fillRect(pot.x - 20, pot.y - 6, 40, 30)
+    g.fillStyle(0xc98a5e, 1)
+    g.fillRect(pot.x - 24, pot.y - 10, 48, 8)
+
+    // 굴러다니는 공
+    const ball = { x: ROOM.x + 176, y: floorY + 108 }
+    g.fillStyle(0xe05a5a, 1)
+    g.fillCircle(ball.x, ball.y, 13)
+    g.fillStyle(0xf2ede2, 1)
+    g.fillRect(ball.x - 13, ball.y, 26, 13)
+    g.fillStyle(0x3a3020, 1)
+    g.fillRect(ball.x - 13, ball.y - 2, 26, 4)
+    g.fillStyle(0xf2ede2, 1)
+    g.fillCircle(ball.x, ball.y, 4)
+    g.lineStyle(2, 0x3a3020, 1)
+    g.strokeCircle(ball.x, ball.y, 4)
+    g.strokeCircle(ball.x, ball.y, 13)
   }
 
   private createStatus(): void {
@@ -456,7 +626,17 @@ export class RaisingScene extends Phaser.Scene {
 
   private refresh(): void {
     const date = dateOf(this.save.year, this.state.week)
-    this.dateText.setText(`${date.year}년 ${date.month}월 ${date.week}주차`)
+    const season = seasonOf(date.month)
+
+    this.dateText.setText(
+      `${date.year}년 ${date.month}월 ${date.week}주차   ·   ${SEASON_LABELS[season]}`,
+    )
+
+    // 계절이 넘어갔을 때만 창밖을 다시 그립니다.
+    if (season !== this.drawnSeason) {
+      this.drawnSeason = season
+      drawWindowView(this.windowView, WINDOW, season)
+    }
     this.moneyText.setText(`₽ ${this.state.money.toLocaleString()}`)
 
     const months = ageInMonths(this.state.week)
