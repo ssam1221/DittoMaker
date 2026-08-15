@@ -90,6 +90,8 @@ export class RaisingScene extends Phaser.Scene {
 
   /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
   private popup?: MenuPopup
+  /** 다른 화면에서 돌아오며 들고 온 안내 */
+  private pendingNotice?: string
 
   private page: Page = 'stats'
   private statsPage: Phaser.GameObjects.GameObject[] = []
@@ -101,9 +103,11 @@ export class RaisingScene extends Phaser.Scene {
     super(SceneKey.Raising)
   }
 
-  init(data: SaveData): void {
+  init(data: SaveData & { notice?: string }): void {
     this.save = data
     this.state = ensureRaisingState(data.raising)
+    // 수업을 마치고 돌아왔다면 그 결과를 한 번 띄웁니다.
+    this.pendingNotice = data.notice
   }
 
   preload(): void {
@@ -137,6 +141,11 @@ export class RaisingScene extends Phaser.Scene {
     this.bindKeyboard()
     this.refresh()
     this.cameras.main.fadeIn(400, 0, 0, 0)
+
+    if (this.pendingNotice) {
+      this.showNotice(this.pendingNotice)
+      this.pendingNotice = undefined
+    }
   }
 
   // --- 화면 만들기 ---
@@ -636,7 +645,7 @@ export class RaisingScene extends Phaser.Scene {
     this.popup = openMenu(this, {
       title: '이번 주 일정',
       items: [
-        { label: '훈련시키기', run: () => this.afterPopup(() => this.notImplemented('훈련')) },
+        { label: '배우러 가기', run: () => this.afterPopup(() => this.goLesson()) },
         { label: '일시키기', run: () => this.afterPopup(() => this.notImplemented('일')) },
         { label: '모험', run: () => this.afterPopup(() => this.notImplemented('모험')) },
         { label: '휴식', run: () => this.afterPopup(() => this.doRest()) },
@@ -652,6 +661,14 @@ export class RaisingScene extends Phaser.Scene {
   private afterPopup(run: () => void): void {
     this.popup = undefined
     run()
+  }
+
+  /** 배우러 나갑니다. 진행 상태를 들고 갔다가 그대로 되돌려 받습니다. */
+  private goLesson(): void {
+    this.cameras.main.fadeOut(250, 0, 0, 0)
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start(SceneKey.Lesson, { ...this.save, raising: this.state })
+    })
   }
 
   /** 지금까지의 진행을 들고 마을로 나갑니다. 돌아오면 그대로 이어집니다. */
