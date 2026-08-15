@@ -18,6 +18,7 @@ import {
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
+import { openMenu, type MenuPopup } from '../ui/menuPopup'
 import { drawWindowView } from '../ui/window'
 
 const DITTO_KEY = '0132-메타몽'
@@ -87,6 +88,9 @@ export class RaisingScene extends Phaser.Scene {
   private drawnSeason?: Season
   private notice?: Phaser.GameObjects.Text
 
+  /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
+  private popup?: MenuPopup
+
   private page: Page = 'stats'
   private statsPage: Phaser.GameObjects.GameObject[] = []
   private typesPage: Phaser.GameObjects.GameObject[] = []
@@ -119,6 +123,8 @@ export class RaisingScene extends Phaser.Scene {
     this.selected = 0
     // 이 값이 남아 있으면 다시 들어왔을 때 창밖을 그리지 않고 넘어갑니다.
     this.drawnSeason = undefined
+    // 창을 띄운 채 화면을 벗어났다면 그 흔적이 남아 조작이 잠깁니다.
+    this.popup = undefined
 
     playBgm(this, AudioKey.Town)
 
@@ -523,8 +529,7 @@ export class RaisingScene extends Phaser.Scene {
 
   private createCommands(): void {
     this.commands = [
-      { label: '훈련', run: () => this.notImplemented('훈련') },
-      { label: '모험', run: () => this.notImplemented('모험') },
+      { label: '일정', run: () => this.openSchedule() },
       { label: '마을', run: () => this.goVillage() },
       { label: '대화', run: () => this.notImplemented('대화') },
       { label: '휴식', run: () => this.doRest() },
@@ -575,14 +580,39 @@ export class RaisingScene extends Phaser.Scene {
   private bindKeyboard(): void {
     const keyboard = this.input.keyboard!
 
-    keyboard.on('keydown-LEFT', () => this.move(-1))
-    keyboard.on('keydown-RIGHT', () => this.move(1))
-    keyboard.on('keydown-ENTER', () => this.commands[this.selected]?.run())
-    keyboard.on('keydown-SPACE', () => this.commands[this.selected]?.run())
-    keyboard.on('keydown-ESC', () => this.scene.start(SceneKey.Menu))
+    // 일정 창이 떠 있으면 그쪽이 키를 가져갑니다.
+    keyboard.on('keydown-UP', () => this.popup?.move(-1))
+    keyboard.on('keydown-DOWN', () => this.popup?.move(1))
+
+    keyboard.on('keydown-LEFT', () => {
+      if (!this.popup) this.move(-1)
+    })
+    keyboard.on('keydown-RIGHT', () => {
+      if (!this.popup) this.move(1)
+    })
+
+    const activate = (): void => {
+      if (this.popup) {
+        this.popup.submit()
+        return
+      }
+      this.commands[this.selected]?.run()
+    }
+    keyboard.on('keydown-ENTER', activate)
+    keyboard.on('keydown-SPACE', activate)
+
+    keyboard.on('keydown-ESC', () => {
+      if (this.popup) {
+        this.popup.cancel()
+        return
+      }
+      this.scene.start(SceneKey.Menu)
+    })
+
     // 오른쪽 판을 능력치 / 타입 사이에서 넘깁니다.
     keyboard.on('keydown-TAB', (event: KeyboardEvent) => {
       event.preventDefault()
+      if (this.popup) return
       this.showPage(this.page === 'stats' ? 'types' : 'stats')
     })
   }
@@ -597,6 +627,31 @@ export class RaisingScene extends Phaser.Scene {
     this.state = rest(this.state)
     this.refresh()
     this.showNotice('한 주를 쉬었습니다')
+  }
+
+  /** 이번 주에 무엇을 할지 고르는 창 */
+  private openSchedule(): void {
+    if (this.popup) return
+
+    this.popup = openMenu(this, {
+      title: '이번 주 일정',
+      items: [
+        { label: '훈련시키기', run: () => this.afterPopup(() => this.notImplemented('훈련')) },
+        { label: '일시키기', run: () => this.afterPopup(() => this.notImplemented('일')) },
+        { label: '모험', run: () => this.afterPopup(() => this.notImplemented('모험')) },
+        { label: '휴식', run: () => this.afterPopup(() => this.doRest()) },
+        { label: '뒤로', run: () => this.afterPopup(() => undefined) },
+      ],
+      onCancel: () => {
+        this.popup = undefined
+      },
+    })
+  }
+
+  /** 창이 닫힌 뒤에 실행합니다. 창 상태를 먼저 비워야 조작이 다시 살아납니다. */
+  private afterPopup(run: () => void): void {
+    this.popup = undefined
+    run()
   }
 
   /** 지금까지의 진행을 들고 마을로 나갑니다. 돌아오면 그대로 이어집니다. */
