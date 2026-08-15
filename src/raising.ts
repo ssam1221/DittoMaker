@@ -54,7 +54,9 @@ export interface Stats {
   attack: number
   defense: number
   special: number
+  specialDefense: number
   speed: number
+  /** 화면에는 내지 않지만 계속 쌓이는 값입니다. */
   bond: number
 }
 
@@ -71,13 +73,17 @@ export interface RaisingState {
   stress: number
 }
 
+/**
+ * 화면에 줄로 내보이는 능력치.
+ * bond 는 여기에 없지만 값은 계속 오르내립니다.
+ */
 export const STAT_LABELS: ReadonlyArray<{ key: keyof Stats; label: string }> = [
   { key: 'hp', label: '체력' },
   { key: 'attack', label: '공격' },
   { key: 'defense', label: '방어' },
-  { key: 'special', label: '특수' },
+  { key: 'special', label: '특수공격' },
+  { key: 'specialDefense', label: '특수방어' },
   { key: 'speed', label: '스피드' },
-  { key: 'bond', label: '친밀도' },
 ]
 
 /** 모든 타입을 같은 값으로 채운 적성표 */
@@ -90,7 +96,15 @@ export function createRaisingState(): RaisingState {
     week: 0,
     money: 3000,
     // 메타몽은 아직 아무것도 아니라 어느 쪽으로도 치우치지 않은 값에서 시작합니다.
-    stats: { hp: 20, attack: 20, defense: 20, special: 20, speed: 20, bond: 30 },
+    stats: {
+      hp: 20,
+      attack: 20,
+      defense: 20,
+      special: 20,
+      specialDefense: 20,
+      speed: 20,
+      bond: 30,
+    },
     // 노말만 조금 높습니다. 변신하지 않은 메타몽 자신의 타입입니다.
     types: { ...makeAffinity(0), normal: 20 },
     condition: 80,
