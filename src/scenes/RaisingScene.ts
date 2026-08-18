@@ -28,6 +28,8 @@ import {
   type RaisingState,
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
+import { replyTo, TALK_TONES, type TalkTone } from '../talk'
+import { ChoiceBox } from '../ui/choiceBox'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
 import {
   SchedulePopup,
@@ -105,6 +107,10 @@ export class RaisingScene extends Phaser.Scene {
 
   /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
   private popup?: SchedulePopup
+  /** 말 거는 창 */
+  private talk?: ChoiceBox
+  /** 메타몽의 반응이 떠 있는 띠 */
+  private reply?: Phaser.GameObjects.Container
   /** 다른 화면에서 돌아오며 들고 온 안내 */
   private pendingNotice?: string
 
@@ -144,6 +150,8 @@ export class RaisingScene extends Phaser.Scene {
     this.drawnSeason = undefined
     // 창을 띄운 채 화면을 벗어났다면 그 흔적이 남아 조작이 잠깁니다.
     this.popup = undefined
+    this.talk = undefined
+    this.reply = undefined
 
     playBgm(this, AudioKey.Town)
 
@@ -555,7 +563,7 @@ export class RaisingScene extends Phaser.Scene {
     this.commands = [
       { label: '일정', run: () => this.openSchedule() },
       { label: '마을', run: () => this.goVillage() },
-      { label: '대화', run: () => this.notImplemented('대화') },
+      { label: '대화', run: () => this.openTalk() },
       // 휴식은 이번 주에 무엇을 할지 고르는 일정 창 안에 있습니다.
       { label: '저장', run: () => this.doSave() },
     ]
@@ -604,20 +612,21 @@ export class RaisingScene extends Phaser.Scene {
   private bindKeyboard(): void {
     const keyboard = this.input.keyboard!
 
-    // 일정 창이 떠 있으면 그쪽이 키를 가져갑니다.
-    keyboard.on('keydown-UP', () => this.popup?.move(-1))
-    keyboard.on('keydown-DOWN', () => this.popup?.move(1))
+    // 창이 떠 있으면 그쪽이 키를 가져갑니다.
+    keyboard.on('keydown-UP', () => this.openWindow()?.move(-1))
+    keyboard.on('keydown-DOWN', () => this.openWindow()?.move(1))
 
     keyboard.on('keydown-LEFT', () => {
-      if (!this.popup) this.move(-1)
+      if (!this.openWindow()) this.move(-1)
     })
     keyboard.on('keydown-RIGHT', () => {
-      if (!this.popup) this.move(1)
+      if (!this.openWindow()) this.move(1)
     })
 
     const activate = (): void => {
-      if (this.popup) {
-        this.popup.submit()
+      const open = this.openWindow()
+      if (open) {
+        open.submit()
         return
       }
       this.commands[this.selected]?.run()
@@ -626,8 +635,9 @@ export class RaisingScene extends Phaser.Scene {
     keyboard.on('keydown-SPACE', activate)
 
     keyboard.on('keydown-ESC', () => {
-      if (this.popup) {
-        this.popup.cancel()
+      const open = this.openWindow()
+      if (open) {
+        open.cancel()
         return
       }
       this.scene.start(SceneKey.Menu)
@@ -636,9 +646,14 @@ export class RaisingScene extends Phaser.Scene {
     // 오른쪽 판을 능력치 / 타입 사이에서 넘깁니다.
     keyboard.on('keydown-TAB', (event: KeyboardEvent) => {
       event.preventDefault()
-      if (this.popup) return
+      if (this.openWindow()) return
       this.showPage(this.page === 'stats' ? 'types' : 'stats')
     })
+  }
+
+  /** 지금 열려 있는 창. 둘은 동시에 뜨지 않습니다. */
+  private openWindow(): SchedulePopup | ChoiceBox | undefined {
+    return this.popup ?? this.talk
   }
 
   private move(delta: number): void {
@@ -807,6 +822,77 @@ export class RaisingScene extends Phaser.Scene {
     run?.()
   }
 
+  /** 말을 거는 창. 어떤 말투로 걸지 고릅니다. */
+  private openTalk(): void {
+    if (this.talk) return
+
+    this.talk = new ChoiceBox(this, {
+      title: '어떻게 말을 걸까요?',
+      // 방 안 메타몽 곁에 띄웁니다.
+      x: ROOM.x + ROOM.width / 2,
+      y: ROOM.y + ROOM.height / 2 - 20,
+      items: [
+        ...TALK_TONES.map((tone) => ({
+          label: tone.label,
+          detail: tone.detail,
+          run: () => this.sayTo(tone.tone),
+        })),
+        { label: '뒤로', detail: '', run: () => this.closeTalk() },
+      ],
+      onCancel: () => {
+        this.talk = undefined
+      },
+    })
+  }
+
+  private sayTo(tone: TalkTone): void {
+    const reply = replyTo(tone, { state: this.state, name: this.save.dittoName })
+
+    this.closeTalk()
+    this.showReply(reply)
+  }
+
+  private closeTalk(): void {
+    this.talk?.close()
+    this.talk = undefined
+  }
+
+  /** 메타몽의 반응을 방 아래쪽 띠에 띄웁니다. */
+  private showReply(text: string): void {
+    this.reply?.destroy(true)
+
+    const box = { x: ROOM.x + 16, y: ROOM.y + ROOM.height - 76, width: ROOM.width - 32, height: 60 }
+    const container = this.add.container(0, 0)
+    container.setDepth(90)
+
+    const panel = this.add.graphics()
+    panel.fillStyle(0x0d0b1a, 0.92)
+    panel.fillRoundedRect(box.x, box.y, box.width, box.height, 10)
+    panel.lineStyle(2, 0x8f7fd4, 1)
+    panel.strokeRoundedRect(box.x, box.y, box.width, box.height, 10)
+
+    const line = this.add
+      .text(box.x + box.width / 2, box.y + box.height / 2, text, {
+        fontFamily: FontFamily.Body,
+        fontSize: '17px',
+        color: '#f3efff',
+        align: 'center',
+        wordWrap: { width: box.width - 32 },
+      })
+      .setOrigin(0.5)
+
+    container.add([panel, line])
+    this.reply = container
+
+    this.tweens.add({
+      targets: container,
+      alpha: 0,
+      delay: 3200,
+      duration: 600,
+      onComplete: () => container.destroy(true),
+    })
+  }
+
   /** 지금까지의 진행을 들고 마을로 나갑니다. 돌아오면 그대로 이어집니다. */
   private goVillage(): void {
     this.cameras.main.fadeOut(250, 0, 0, 0)
@@ -824,10 +910,6 @@ export class RaisingScene extends Phaser.Scene {
 
     writeSlot(slot, { ...this.save, raising: this.state })
     this.showNotice(`${slot}번 슬롯에 저장했습니다`)
-  }
-
-  private notImplemented(label: string): void {
-    this.showNotice(`${label}은 아직 준비 중입니다`)
   }
 
   // --- 표시 갱신 ---
