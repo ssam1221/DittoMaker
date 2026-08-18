@@ -116,9 +116,10 @@ export class SchedulePopup {
     )
 
     const cellW = (LEFT.width - 36) / 7
-    const headerY = LEFT.y + 48
-    const gridTop = LEFT.y + 72
-    const rowH = 30
+    const headerY = LEFT.y + 46
+    const gridTop = LEFT.y + 66
+    // 날짜 아래에 무엇을 하기로 했는지 한 글자를 더 넣어야 해서 조금 높습니다.
+    const rowH = 31
 
     WEEKDAYS.forEach((label, i) => {
       this.container.add(
@@ -159,14 +160,44 @@ export class SchedulePopup {
         scene.add
           .text(x, y, `${day}`, {
             fontFamily: FontFamily.Plain,
-            fontSize: '14px',
+            fontSize: '13px',
             color: cell % 7 === 0 ? '#ff9a9a' : '#efe8d2',
           })
           .setOrigin(0.5, 0),
       )
+
+      // 그 날이 속한 도막에 정해 둔 것이 있으면 날짜 아래에 표시합니다.
+      // 원래는 그림이 들어갈 자리라, 지금은 이름 첫 글자로 대신합니다.
+      const mark = this.markFor(day, total)
+      if (mark) {
+        this.container.add(
+          scene.add
+            .text(x, y + 14, mark, {
+              fontFamily: FontFamily.Plain,
+              fontSize: '11px',
+              color: '#ffd447',
+            })
+            .setOrigin(0.5, 0),
+        )
+      }
     }
 
     this.buildPlan()
+  }
+
+  /** 그 날짜가 속한 칸에 짜 둔 활동의 첫 글자 */
+  private markFor(day: number, daysInThisMonth: number): string | null {
+    for (let slot = 0; slot < PERIODS_PER_MONTH; slot += 1) {
+      const [from, to] = periodDayRange(slot + 1, daysInThisMonth)
+      if (day < from || day > to) continue
+
+      const key = this.options.plan[slot]
+      if (key === undefined) return null
+
+      return (findActivity(key)?.name ?? key).slice(0, 1)
+    }
+
+    return null
   }
 
   /** 달력 아래에 이번 달 세 칸을 늘어놓습니다. */
