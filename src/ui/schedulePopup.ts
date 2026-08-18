@@ -138,15 +138,16 @@ export class SchedulePopup {
     const [from, to] = periodDayRange(period, total)
 
     // 지금 도막에 드는 날짜만 덮어 표시합니다.
+    // 날짜 글자가 칸 가운데(+0.5)에 놓이므로 네모도 같은 중심에 맞춥니다.
     const marker = scene.add.graphics()
     marker.fillStyle(0xffd447, 0.2)
     for (let day = from; day <= to; day += 1) {
       const cell = offset + day - 1
       marker.fillRect(
-        LEFT.x + 18 + cellW * (cell % 7) - cellW / 2 + 2,
+        LEFT.x + 18 + cellW * (cell % 7) + 2,
         gridTop + Math.floor(cell / 7) * rowH - 3,
         cellW - 4,
-        rowH - 6,
+        rowH - 4,
       )
     }
     this.container.add(marker)

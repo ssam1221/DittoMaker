@@ -29,7 +29,6 @@ import {
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
-import { askConfirm, type ConfirmDialog } from '../ui/confirm'
 import {
   SchedulePopup,
   toScheduleItem,
@@ -106,8 +105,6 @@ export class RaisingScene extends Phaser.Scene {
 
   /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
   private popup?: SchedulePopup
-  /** 진행 여부를 묻는 확인 창 */
-  private dialog?: ConfirmDialog
   /** 다른 화면에서 돌아오며 들고 온 안내 */
   private pendingNotice?: string
 
@@ -147,7 +144,6 @@ export class RaisingScene extends Phaser.Scene {
     this.drawnSeason = undefined
     // 창을 띄운 채 화면을 벗어났다면 그 흔적이 남아 조작이 잠깁니다.
     this.popup = undefined
-    this.dialog = undefined
 
     playBgm(this, AudioKey.Town)
 
@@ -609,34 +605,17 @@ export class RaisingScene extends Phaser.Scene {
     const keyboard = this.input.keyboard!
 
     // 일정 창이 떠 있으면 그쪽이 키를 가져갑니다.
-    keyboard.on('keydown-UP', () => {
-      if (!this.dialog) this.popup?.move(-1)
-    })
-    keyboard.on('keydown-DOWN', () => {
-      if (!this.dialog) this.popup?.move(1)
-    })
+    keyboard.on('keydown-UP', () => this.popup?.move(-1))
+    keyboard.on('keydown-DOWN', () => this.popup?.move(1))
 
     keyboard.on('keydown-LEFT', () => {
-      // 확인 창이 떠 있으면 예 / 아니오 사이를 오갑니다.
-      if (this.dialog) {
-        this.dialog.moveSelection(-1)
-        return
-      }
       if (!this.popup) this.move(-1)
     })
     keyboard.on('keydown-RIGHT', () => {
-      if (this.dialog) {
-        this.dialog.moveSelection(1)
-        return
-      }
       if (!this.popup) this.move(1)
     })
 
     const activate = (): void => {
-      if (this.dialog) {
-        this.dialog.submit()
-        return
-      }
       if (this.popup) {
         this.popup.submit()
         return
@@ -647,10 +626,6 @@ export class RaisingScene extends Phaser.Scene {
     keyboard.on('keydown-SPACE', activate)
 
     keyboard.on('keydown-ESC', () => {
-      if (this.dialog) {
-        this.dialog.cancel()
-        return
-      }
       if (this.popup) {
         this.popup.cancel()
         return
@@ -773,26 +748,34 @@ export class RaisingScene extends Phaser.Scene {
     this.askRunPlan()
   }
 
+  /**
+   * 세 칸이 다 찼을 때 묻습니다.
+   * 달력은 그대로 두고 오른쪽 판만 갈아끼워, 짜 놓은 것을 보면서 답하게 합니다.
+   */
   private askRunPlan(): void {
-    const names = this.state.plan
-      .map((key, i) => `${PERIOD_LABELS[i]} ${findActivity(key)?.name ?? key}`)
-      .join('    ')
-
-    this.closeSchedule(() => {
-      this.dialog = askConfirm(this, {
-        question: '이 일정대로 진행할까요?',
-        warning: names,
-        onConfirm: () => {
-          this.dialog = undefined
-          this.runPlan()
+    this.popup?.setItems({
+      title: '이 일정대로 진행할까요?',
+      state: this.state,
+      date: dateOf(this.save.year, this.state.period),
+      plan: this.state.plan,
+      items: [
+        {
+          label: '진행한다',
+          detail: '이대로 한 달을 보낸다.',
+          run: () => this.closeSchedule(() => this.runPlan()),
         },
-        onCancel: () => {
-          this.dialog = undefined
-          // 아니라면 처음부터 다시 짭니다.
-          this.state.plan = []
-          this.openSchedule()
+        {
+          label: '다시 짠다',
+          detail: '이번 달을 비우고 처음부터 고른다.',
+          run: () => {
+            this.state.plan = []
+            this.popup?.setItems(this.scheduleOptions())
+          },
         },
-      })
+      ],
+      onCancel: () => {
+        this.popup = undefined
+      },
     })
   }
 
