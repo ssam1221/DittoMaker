@@ -12,7 +12,6 @@ export const SceneKey = {
   Dialogue: 'Dialogue',
   Raising: 'Raising',
   Village: 'Village',
-  Activity: 'Activity',
   Game: 'Game',
 } as const
 

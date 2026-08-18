@@ -1,6 +1,13 @@
 import Phaser from 'phaser'
 
-import type { ActivityKind } from '../activities'
+import {
+  canAfford,
+  doActivity,
+  JOBS,
+  LESSONS,
+  type Activity,
+  type ActivityKind,
+} from '../activities'
 import { playBgm } from '../audio/bgm'
 import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, MusicFile, SceneKey } from '../constants'
 import {
@@ -19,7 +26,12 @@ import {
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
-import { openMenu, type MenuPopup } from '../ui/menuPopup'
+import { withJosa } from '../ui/hangul'
+import {
+  SchedulePopup,
+  toScheduleItem,
+  type SchedulePopupOptions,
+} from '../ui/schedulePopup'
 import { drawWindowView } from '../ui/window'
 
 const DITTO_KEY = '0132-메타몽'
@@ -59,6 +71,9 @@ type Page = 'stats' | 'types'
 const COLOR_IDLE = '#e8dfc4'
 const COLOR_SELECTED = '#ffd447'
 
+/** 결과 문구에 쓸 타입 이름 */
+const TYPE_LABELS = new Map(TYPES.map((t) => [t.key, t.label]))
+
 interface Command {
   label: string
   run: () => void
@@ -90,7 +105,7 @@ export class RaisingScene extends Phaser.Scene {
   private notice?: Phaser.GameObjects.Text
 
   /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
-  private popup?: MenuPopup
+  private popup?: SchedulePopup
   /** 다른 화면에서 돌아오며 들고 온 안내 */
   private pendingNotice?: string
 
@@ -639,18 +654,63 @@ export class RaisingScene extends Phaser.Scene {
     this.showNotice('한 주를 쉬었습니다')
   }
 
-  /** 이번 주에 무엇을 할지 고르는 창 */
+  /**
+   * 이번 주에 무엇을 할지 고르는 창.
+   * 화면을 넘기지 않고 방 위에 달력과 선택창을 함께 띄웁니다.
+   */
   private openSchedule(): void {
     if (this.popup) return
 
-    this.popup = openMenu(this, {
+    this.popup = new SchedulePopup(this, this.scheduleOptions())
+  }
+
+  private scheduleOptions(): SchedulePopupOptions {
+    return {
       title: '이번 주 일정',
+      state: this.state,
+      date: dateOf(this.save.year, this.state.week),
       items: [
-        { label: '배우러 가기', run: () => this.afterPopup(() => this.goActivity('lesson')) },
-        { label: '일시키기', run: () => this.afterPopup(() => this.goActivity('job')) },
-        { label: '모험', run: () => this.afterPopup(() => this.notImplemented('모험')) },
-        { label: '휴식', run: () => this.afterPopup(() => this.doRest()) },
-        { label: '뒤로', run: () => this.afterPopup(() => undefined) },
+        {
+          label: '배우러 가기',
+          detail: '수업료를 내고 한 주를 배운다.',
+          run: () => this.showActivities('lesson'),
+        },
+        {
+          label: '일시키기',
+          detail: '한 주 일하고 삯을 받는다.',
+          run: () => this.showActivities('job'),
+        },
+        {
+          label: '모험',
+          detail: '아직 준비 중입니다.',
+          run: () => this.closeSchedule(() => this.notImplemented('모험')),
+        },
+        {
+          label: '휴식',
+          detail: '한 주 쉬며 컨디션을 되찾는다.',
+          run: () => this.closeSchedule(() => this.doRest()),
+        },
+        { label: '뒤로', detail: '', run: () => this.closeSchedule() },
+      ],
+      onCancel: () => {
+        this.popup = undefined
+      },
+    }
+  }
+
+  /** 같은 창에서 목록만 수업 또는 일로 갈아끼웁니다. */
+  private showActivities(kind: ActivityKind): void {
+    const list = kind === 'job' ? JOBS : LESSONS
+
+    this.popup?.setItems({
+      title: kind === 'job' ? '어떤 일을 할까요?' : '무엇을 배우러 갈까요?',
+      state: this.state,
+      date: dateOf(this.save.year, this.state.week),
+      items: [
+        ...list.map((activity) =>
+          toScheduleItem(activity, this.state, () => this.perform(activity)),
+        ),
+        { label: '뒤로', detail: '', run: () => this.popup?.setItems(this.scheduleOptions()) },
       ],
       onCancel: () => {
         this.popup = undefined
@@ -658,18 +718,35 @@ export class RaisingScene extends Phaser.Scene {
     })
   }
 
-  /** 창이 닫힌 뒤에 실행합니다. 창 상태를 먼저 비워야 조작이 다시 살아납니다. */
-  private afterPopup(run: () => void): void {
-    this.popup = undefined
-    run()
+  /** 한 주를 들여 수업을 듣거나 일을 합니다. */
+  private perform(activity: Activity): void {
+    if (!canAfford(this.state, activity)) {
+      this.showNotice(`수업료가 모자랍니다 (₽${-activity.money})`)
+      return
+    }
+
+    const result = doActivity(this.state, activity)
+    this.state = result.state
+
+    const gains = result.typeGains
+      .map((g) => `${TYPE_LABELS.get(g.type) ?? g.type} +${g.gain}`)
+      .join('  ')
+
+    // "도서관 정리를 일했다" 는 말이 안 되므로 일 쪽은 "했다" 로 받습니다.
+    const verb = activity.kind === 'job' ? '했다' : '배웠다'
+    const earned = activity.money > 0 ? `  ₽+${activity.money}` : ''
+
+    this.closeSchedule(() => {
+      this.refresh()
+      this.showNotice(`${withJosa(activity.name, '을', '를')} ${verb}.   ${gains}${earned}`)
+    })
   }
 
-  /** 배우러 또는 일하러 나갑니다. 진행 상태를 들고 갔다가 되돌려 받습니다. */
-  private goActivity(kind: ActivityKind): void {
-    this.cameras.main.fadeOut(250, 0, 0, 0)
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.start(SceneKey.Activity, { ...this.save, raising: this.state, kind })
-    })
+  /** 창을 닫고 나서 실행합니다. 창 상태를 먼저 비워야 조작이 다시 살아납니다. */
+  private closeSchedule(run?: () => void): void {
+    this.popup?.close()
+    this.popup = undefined
+    run?.()
   }
 
   /** 지금까지의 진행을 들고 마을로 나갑니다. 돌아오면 그대로 이어집니다. */
