@@ -5,10 +5,15 @@
  * 기본값으로 채워 주므로, 오프닝만 보고 저장해 둔 판도 그대로 이어집니다.
  */
 
-/** 한 달은 네 주, 한 해는 열두 달로 셉니다. */
-export const WEEKS_PER_MONTH = 4
+/**
+ * 한 달은 상순·중순·하순 세 도막, 한 해는 열두 달로 셉니다.
+ * 일정 한 칸이 곧 한 도막입니다.
+ */
+export const PERIODS_PER_MONTH = 3
 export const MONTHS_PER_YEAR = 12
-export const WEEKS_PER_YEAR = WEEKS_PER_MONTH * MONTHS_PER_YEAR
+export const PERIODS_PER_YEAR = PERIODS_PER_MONTH * MONTHS_PER_YEAR
+
+export const PERIOD_LABELS = ['상순', '중순', '하순'] as const
 
 /** 아르세우스가 말한 열 해 */
 export const TOTAL_YEARS = 10
@@ -67,8 +72,13 @@ export interface Stats {
 }
 
 export interface RaisingState {
-  /** 시작부터 지난 주 수. 0 이면 첫 주입니다. */
-  week: number
+  /** 시작부터 지난 도막 수. 0 이면 첫 달 상순입니다. */
+  period: number
+  /**
+   * 이번 달에 짜 둔 일정. 활동 key 를 순서대로 담으며,
+   * 세 칸이 다 차면 그대로 진행할지 묻습니다.
+   */
+  plan: string[]
   money: number
   stats: Stats
   /** 타입별 적성. 0 ~ TYPE_MAX */
@@ -99,7 +109,8 @@ function makeAffinity(value: number): TypeAffinity {
 
 export function createRaisingState(): RaisingState {
   return {
-    week: 0,
+    period: 0,
+    plan: [],
     money: 3000,
     // 메타몽은 아직 아무것도 아니라 어느 쪽으로도 치우치지 않은 값에서 시작합니다.
     stats: {
@@ -123,9 +134,16 @@ export function ensureRaisingState(state: RaisingState | undefined): RaisingStat
   if (!state) return createRaisingState()
 
   const base = createRaisingState()
+
+  // 한 달을 네 주로 세던 시절의 세이브는 week 를 들고 있습니다.
+  // 그 수를 그대로 도막 수로 받아 이어 갑니다.
+  const legacy = (state as RaisingState & { week?: number }).week
+
   return {
     ...base,
     ...state,
+    period: state.period ?? legacy ?? 0,
+    plan: state.plan ?? [],
     stats: { ...base.stats, ...state.stats },
     // 타입이 나중에 늘어나도 빠진 칸이 생기지 않게 합칩니다.
     types: { ...base.types, ...state.types },
@@ -135,22 +153,29 @@ export function ensureRaisingState(state: RaisingState | undefined): RaisingStat
 export interface GameDate {
   year: number
   month: number
-  /** 그 달의 몇 주차인지 (1~4) */
-  week: number
+  /** 그 달의 몇 번째 도막인지 (1 상순, 2 중순, 3 하순) */
+  period: number
 }
 
 /**
- * 시작 연도와 지난 주 수로 지금 날짜를 구합니다.
- * 0주차는 START_MONTH 의 1주차이고, 달을 넘기다 해가 바뀌면 연도도 오릅니다.
+ * 시작 연도와 지난 도막 수로 지금 날짜를 구합니다.
+ * 0 은 START_MONTH 의 상순이고, 달을 넘기다 해가 바뀌면 연도도 오릅니다.
  */
-export function dateOf(startYear: number, week: number): GameDate {
-  const monthsElapsed = START_MONTH - 1 + Math.floor(week / WEEKS_PER_MONTH)
+export function dateOf(startYear: number, period: number): GameDate {
+  const monthsElapsed = START_MONTH - 1 + Math.floor(period / PERIODS_PER_MONTH)
 
   return {
     year: startYear + Math.floor(monthsElapsed / MONTHS_PER_YEAR),
     month: (monthsElapsed % MONTHS_PER_YEAR) + 1,
-    week: (week % WEEKS_PER_MONTH) + 1,
+    period: (period % PERIODS_PER_MONTH) + 1,
   }
+}
+
+/** 상순은 1~10일, 중순은 11~20일, 하순은 21일부터 */
+export function periodDayRange(period: number, daysInThisMonth: number): [number, number] {
+  if (period === 1) return [1, 10]
+  if (period === 2) return [11, 20]
+  return [21, daysInThisMonth]
 }
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
@@ -171,12 +196,12 @@ export function seasonOf(month: number): Season {
 }
 
 /** 태어난 뒤 지난 개월 수 */
-export function ageInMonths(week: number): number {
-  return Math.floor(week / WEEKS_PER_MONTH)
+export function ageInMonths(period: number): number {
+  return Math.floor(period / PERIODS_PER_MONTH)
 }
 
-export function isFinished(week: number): boolean {
-  return week >= WEEKS_PER_YEAR * TOTAL_YEARS
+export function isFinished(period: number): boolean {
+  return period >= PERIODS_PER_YEAR * TOTAL_YEARS
 }
 
 export function conditionLabel(condition: number): string {
@@ -199,7 +224,7 @@ export function rest(state: RaisingState): RaisingState {
 
   return {
     ...state,
-    week: state.week + 1,
+    period: state.period + 1,
     stress,
     // 스트레스가 남아 있으면 회복이 덜 됩니다.
     condition: clamp(state.condition + 20 - Math.floor(stress / 5), 0, 100),

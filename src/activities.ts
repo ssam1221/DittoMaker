@@ -11,7 +11,7 @@ import { STAT_MAX, TYPE_MAX, type RaisingState, type Stats, type TypeKey } from 
  * 돈의 방향과, 배움에 얼마나 집중하느냐뿐입니다.
  */
 
-export type ActivityKind = 'lesson' | 'job'
+export type ActivityKind = 'lesson' | 'job' | 'rest'
 
 export interface Activity {
   key: string
@@ -217,10 +217,29 @@ export const JOBS: readonly Activity[] = [
   },
 ]
 
+/** 한 도막을 그냥 쉬는 것도 일정의 한 칸입니다. */
+export const REST: Activity = {
+  key: 'rest',
+  name: '휴식',
+  description: '아무것도 하지 않고 쉰다.',
+  kind: 'rest',
+  types: [],
+  stat: 'bond',
+  money: 0,
+  stress: 0,
+}
+
+export const ALL_ACTIVITIES: readonly Activity[] = [...LESSONS, ...JOBS, REST]
+
+export function findActivity(key: string): Activity | undefined {
+  return ALL_ACTIVITIES.find((a) => a.key === key)
+}
+
 /** 수업은 배우러 가는 것이니 더 많이 얻습니다. */
 const GAIN = {
   lesson: { type: 6, stat: 4 },
   job: { type: 3, stat: 2 },
+  rest: { type: 0, stat: 0 },
 } as const
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -250,6 +269,24 @@ export interface ActivityResult {
  * 능력치와 타입 적성이 오르고, 스트레스가 쌓이며, 돈이 오갑니다.
  */
 export function doActivity(state: RaisingState, activity: Activity): ActivityResult {
+  // 쉬는 도막은 얻는 대신 스트레스를 덜고 컨디션을 되찾습니다.
+  if (activity.kind === 'rest') {
+    const stress = clamp(state.stress - 25, 0, 100)
+
+    return {
+      state: {
+        ...state,
+        period: state.period + 1,
+        stress,
+        // 스트레스가 남아 있으면 회복이 덜 됩니다.
+        condition: clamp(state.condition + 20 - Math.floor(stress / 5), 0, 100),
+        stats: { ...state.stats, bond: clamp(state.stats.bond + 1, 0, STAT_MAX) },
+      },
+      statGain: 0,
+      typeGains: [],
+    }
+  }
+
   const rate = learningRate(state.condition)
   const gain = GAIN[activity.kind]
 
@@ -267,7 +304,7 @@ export function doActivity(state: RaisingState, activity: Activity): ActivityRes
   return {
     state: {
       ...state,
-      week: state.week + 1,
+      period: state.period + 1,
       money: Math.max(0, state.money + activity.money),
       stats: {
         ...state.stats,

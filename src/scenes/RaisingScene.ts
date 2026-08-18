@@ -3,8 +3,10 @@ import Phaser from 'phaser'
 import {
   canAfford,
   doActivity,
+  findActivity,
   JOBS,
   LESSONS,
+  REST,
   type Activity,
   type ActivityKind,
 } from '../activities'
@@ -15,7 +17,8 @@ import {
   conditionLabel,
   dateOf,
   ensureRaisingState,
-  rest,
+  PERIOD_LABELS,
+  PERIODS_PER_MONTH,
   SEASON_LABELS,
   seasonOf,
   STAT_LABELS,
@@ -26,7 +29,7 @@ import {
 } from '../raising'
 import { writeSlot, type SaveData } from '../save'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
-import { withJosa } from '../ui/hangul'
+import { askConfirm, type ConfirmDialog } from '../ui/confirm'
 import {
   SchedulePopup,
   toScheduleItem,
@@ -71,9 +74,6 @@ type Page = 'stats' | 'types'
 const COLOR_IDLE = '#e8dfc4'
 const COLOR_SELECTED = '#ffd447'
 
-/** 결과 문구에 쓸 타입 이름 */
-const TYPE_LABELS = new Map(TYPES.map((t) => [t.key, t.label]))
-
 interface Command {
   label: string
   run: () => void
@@ -106,6 +106,8 @@ export class RaisingScene extends Phaser.Scene {
 
   /** 일정 창이 떠 있는 동안에는 뒤쪽 조작을 막습니다. */
   private popup?: SchedulePopup
+  /** 진행 여부를 묻는 확인 창 */
+  private dialog?: ConfirmDialog
   /** 다른 화면에서 돌아오며 들고 온 안내 */
   private pendingNotice?: string
 
@@ -145,6 +147,7 @@ export class RaisingScene extends Phaser.Scene {
     this.drawnSeason = undefined
     // 창을 띄운 채 화면을 벗어났다면 그 흔적이 남아 조작이 잠깁니다.
     this.popup = undefined
+    this.dialog = undefined
 
     playBgm(this, AudioKey.Town)
 
@@ -606,17 +609,34 @@ export class RaisingScene extends Phaser.Scene {
     const keyboard = this.input.keyboard!
 
     // 일정 창이 떠 있으면 그쪽이 키를 가져갑니다.
-    keyboard.on('keydown-UP', () => this.popup?.move(-1))
-    keyboard.on('keydown-DOWN', () => this.popup?.move(1))
+    keyboard.on('keydown-UP', () => {
+      if (!this.dialog) this.popup?.move(-1)
+    })
+    keyboard.on('keydown-DOWN', () => {
+      if (!this.dialog) this.popup?.move(1)
+    })
 
     keyboard.on('keydown-LEFT', () => {
+      // 확인 창이 떠 있으면 예 / 아니오 사이를 오갑니다.
+      if (this.dialog) {
+        this.dialog.moveSelection(-1)
+        return
+      }
       if (!this.popup) this.move(-1)
     })
     keyboard.on('keydown-RIGHT', () => {
+      if (this.dialog) {
+        this.dialog.moveSelection(1)
+        return
+      }
       if (!this.popup) this.move(1)
     })
 
     const activate = (): void => {
+      if (this.dialog) {
+        this.dialog.submit()
+        return
+      }
       if (this.popup) {
         this.popup.submit()
         return
@@ -627,6 +647,10 @@ export class RaisingScene extends Phaser.Scene {
     keyboard.on('keydown-SPACE', activate)
 
     keyboard.on('keydown-ESC', () => {
+      if (this.dialog) {
+        this.dialog.cancel()
+        return
+      }
       if (this.popup) {
         this.popup.cancel()
         return
@@ -648,12 +672,6 @@ export class RaisingScene extends Phaser.Scene {
     this.refresh()
   }
 
-  private doRest(): void {
-    this.state = rest(this.state)
-    this.refresh()
-    this.showNotice('한 주를 쉬었습니다')
-  }
-
   /**
    * 이번 주에 무엇을 할지 고르는 창.
    * 화면을 넘기지 않고 방 위에 달력과 선택창을 함께 띄웁니다.
@@ -664,32 +682,48 @@ export class RaisingScene extends Phaser.Scene {
     this.popup = new SchedulePopup(this, this.scheduleOptions())
   }
 
+  /** 지금 채우고 있는 칸의 분류 목록 */
   private scheduleOptions(): SchedulePopupOptions {
+    const slot = this.state.plan.length
+
     return {
-      title: '이번 주 일정',
+      title: `이번 달 예정 (${slot + 1}번째)`,
       state: this.state,
-      date: dateOf(this.save.year, this.state.week),
+      date: dateOf(this.save.year, this.state.period),
+      plan: this.state.plan,
       items: [
         {
           label: '배우러 가기',
-          detail: '수업료를 내고 한 주를 배운다.',
+          detail: '수업료를 내고 배운다.',
           run: () => this.showActivities('lesson'),
         },
         {
           label: '일시키기',
-          detail: '한 주 일하고 삯을 받는다.',
+          detail: '일하고 삯을 받는다.',
           run: () => this.showActivities('job'),
         },
         {
           label: '모험',
           detail: '아직 준비 중입니다.',
-          run: () => this.closeSchedule(() => this.notImplemented('모험')),
+          run: () => this.showNotice('모험은 아직 준비 중입니다'),
         },
         {
           label: '휴식',
-          detail: '한 주 쉬며 컨디션을 되찾는다.',
-          run: () => this.closeSchedule(() => this.doRest()),
+          detail: '쉬며 컨디션을 되찾는다.',
+          run: () => this.addToPlan(REST),
         },
+        ...(slot > 0
+          ? [
+              {
+                label: '지우기',
+                detail: '마지막으로 넣은 칸을 뺀다.',
+                run: () => {
+                  this.state.plan.pop()
+                  this.popup?.setItems(this.scheduleOptions())
+                },
+              },
+            ]
+          : []),
         { label: '뒤로', detail: '', run: () => this.closeSchedule() },
       ],
       onCancel: () => {
@@ -705,10 +739,11 @@ export class RaisingScene extends Phaser.Scene {
     this.popup?.setItems({
       title: kind === 'job' ? '어떤 일을 할까요?' : '무엇을 배우러 갈까요?',
       state: this.state,
-      date: dateOf(this.save.year, this.state.week),
+      date: dateOf(this.save.year, this.state.period),
+      plan: this.state.plan,
       items: [
         ...list.map((activity) =>
-          toScheduleItem(activity, this.state, () => this.perform(activity)),
+          toScheduleItem(activity, this.state, () => this.addToPlan(activity)),
         ),
         { label: '뒤로', detail: '', run: () => this.popup?.setItems(this.scheduleOptions()) },
       ],
@@ -718,28 +753,68 @@ export class RaisingScene extends Phaser.Scene {
     })
   }
 
-  /** 한 주를 들여 수업을 듣거나 일을 합니다. */
-  private perform(activity: Activity): void {
+  /**
+   * 고른 것을 이번 달 한 칸에 넣습니다.
+   * 세 칸이 다 차면 이대로 갈지 묻습니다.
+   */
+  private addToPlan(activity: Activity): void {
     if (!canAfford(this.state, activity)) {
       this.showNotice(`수업료가 모자랍니다 (₽${-activity.money})`)
       return
     }
 
-    const result = doActivity(this.state, activity)
-    this.state = result.state
+    this.state.plan.push(activity.key)
 
-    const gains = result.typeGains
-      .map((g) => `${TYPE_LABELS.get(g.type) ?? g.type} +${g.gain}`)
-      .join('  ')
+    if (this.state.plan.length < PERIODS_PER_MONTH) {
+      this.popup?.setItems(this.scheduleOptions())
+      return
+    }
 
-    // "도서관 정리를 일했다" 는 말이 안 되므로 일 쪽은 "했다" 로 받습니다.
-    const verb = activity.kind === 'job' ? '했다' : '배웠다'
-    const earned = activity.money > 0 ? `  ₽+${activity.money}` : ''
+    this.askRunPlan()
+  }
+
+  private askRunPlan(): void {
+    const names = this.state.plan
+      .map((key, i) => `${PERIOD_LABELS[i]} ${findActivity(key)?.name ?? key}`)
+      .join('    ')
 
     this.closeSchedule(() => {
-      this.refresh()
-      this.showNotice(`${withJosa(activity.name, '을', '를')} ${verb}.   ${gains}${earned}`)
+      this.dialog = askConfirm(this, {
+        question: '이 일정대로 진행할까요?',
+        warning: names,
+        onConfirm: () => {
+          this.dialog = undefined
+          this.runPlan()
+        },
+        onCancel: () => {
+          this.dialog = undefined
+          // 아니라면 처음부터 다시 짭니다.
+          this.state.plan = []
+          this.openSchedule()
+        },
+      })
     })
+  }
+
+  /** 짜 둔 세 칸을 차례대로 치릅니다. */
+  private runPlan(): void {
+    const done: string[] = []
+
+    for (const key of this.state.plan) {
+      const activity = findActivity(key)
+      if (!activity) continue
+
+      // 앞 칸에서 돈을 다 썼다면 남은 칸은 쉬는 것으로 대신합니다.
+      const actual = canAfford(this.state, activity) ? activity : REST
+      const result = doActivity(this.state, actual)
+      this.state = result.state
+
+      done.push(actual === activity ? activity.name : `${activity.name}→휴식`)
+    }
+
+    this.state.plan = []
+    this.refresh()
+    this.showNotice(`한 달이 지났다.   ${done.join('  ·  ')}`)
   }
 
   /** 창을 닫고 나서 실행합니다. 창 상태를 먼저 비워야 조작이 다시 살아납니다. */
@@ -775,11 +850,11 @@ export class RaisingScene extends Phaser.Scene {
   // --- 표시 갱신 ---
 
   private refresh(): void {
-    const date = dateOf(this.save.year, this.state.week)
+    const date = dateOf(this.save.year, this.state.period)
     const season = seasonOf(date.month)
 
     this.dateText.setText(
-      `${date.year}년 ${date.month}월 ${date.week}주차   ·   ${SEASON_LABELS[season]}`,
+      `${date.year}년 ${date.month}월 ${PERIOD_LABELS[date.period - 1]}   ·   ${SEASON_LABELS[season]}`,
     )
 
     // 계절이 넘어갔을 때만 창밖을 다시 그립니다.
@@ -789,7 +864,7 @@ export class RaisingScene extends Phaser.Scene {
     }
     this.moneyText.setText(`₽ ${this.state.money.toLocaleString()}`)
 
-    const months = ageInMonths(this.state.week)
+    const months = ageInMonths(this.state.period)
     this.ageText.setText(
       months === 0 ? '태어난 지 얼마 되지 않았다' : `생후 ${months}개월`,
     )

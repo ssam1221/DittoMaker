@@ -1,9 +1,15 @@
 import Phaser from 'phaser'
 
-import { canAfford, type Activity } from '../activities'
+import { canAfford, findActivity, type Activity } from '../activities'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH } from '../constants'
+import {
+  PERIOD_LABELS,
+  PERIODS_PER_MONTH,
+  periodDayRange,
+  TYPES,
+  type RaisingState,
+} from '../raising'
 import { daysInMonth } from './calendar'
-import { TYPES, type RaisingState } from '../raising'
 import { addChoice } from './panel'
 
 /**
@@ -15,6 +21,8 @@ import { addChoice } from './panel'
  */
 
 const LEFT = { x: 24, y: 84, width: 300, height: 252 }
+/** 달력 아래 — 짜 둔 세 칸과 고른 항목 설명이 앉는 자리 */
+const PLAN = { x: 24, y: 344, width: 300, height: 122 }
 const RIGHT = { x: 344, y: 84, width: 324, height: 372 }
 
 const COLOR_IDLE = '#e8dfc4'
@@ -42,7 +50,9 @@ export interface SchedulePopupOptions {
   title: string
   items: ScheduleItem[]
   state: RaisingState
-  date: { year: number; month: number; week: number }
+  date: { year: number; month: number; period: number }
+  /** 이번 달에 짜 둔 세 칸. 채워진 자리는 이름이, 빈 자리는 줄표가 뜹니다. */
+  plan: string[]
   /** Esc 로 닫았을 때 */
   onCancel: () => void
 }
@@ -91,7 +101,7 @@ export class SchedulePopup {
 
   private buildCalendar(): void {
     const scene = this.scene
-    const { year, month, week } = this.options.date
+    const { year, month, period } = this.options.date
 
     this.container.add(this.panel(LEFT))
 
@@ -124,12 +134,20 @@ export class SchedulePopup {
 
     const total = daysInMonth(year, month)
     const offset = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+    const [from, to] = periodDayRange(period, total)
 
-    // 한 달을 네 주로 세는 게임이므로, 지금 주에 해당하는 줄을 덮어 표시합니다.
-    const highlightRow = Math.min(week - 1, Math.floor((offset + total - 1) / 7))
-    const marker = this.scene.add.graphics()
-    marker.fillStyle(0xffd447, 0.18)
-    marker.fillRect(LEFT.x + 14, gridTop + highlightRow * rowH - 4, LEFT.width - 28, rowH - 2)
+    // 지금 도막에 드는 날짜만 덮어 표시합니다.
+    const marker = scene.add.graphics()
+    marker.fillStyle(0xffd447, 0.2)
+    for (let day = from; day <= to; day += 1) {
+      const cell = offset + day - 1
+      marker.fillRect(
+        LEFT.x + 18 + cellW * (cell % 7) - cellW / 2 + 2,
+        gridTop + Math.floor(cell / 7) * rowH - 3,
+        cellW - 4,
+        rowH - 6,
+      )
+    }
     this.container.add(marker)
 
     for (let day = 1; day <= total; day += 1) {
@@ -145,6 +163,32 @@ export class SchedulePopup {
             color: cell % 7 === 0 ? '#ff9a9a' : '#efe8d2',
           })
           .setOrigin(0.5, 0),
+      )
+    }
+
+    this.buildPlan()
+  }
+
+  /** 달력 아래에 이번 달 세 칸을 늘어놓습니다. */
+  private buildPlan(): void {
+    const scene = this.scene
+    const { plan } = this.options
+
+    this.container.add(this.panel(PLAN))
+
+    for (let i = 0; i < PERIODS_PER_MONTH; i += 1) {
+      const key = plan[i]
+      const filled = key !== undefined
+      const name = filled ? (findActivity(key)?.name ?? key) : '—'
+
+      this.container.add(
+        scene.add
+          .text(PLAN.x + 20, PLAN.y + 14 + i * 22, `${PERIOD_LABELS[i]}   ${name}`, {
+            fontFamily: FontFamily.Body,
+            fontSize: '16px',
+            color: filled ? '#ffd447' : '#8a7a6a',
+          })
+          .setOrigin(0, 0),
       )
     }
   }
@@ -241,14 +285,14 @@ export class SchedulePopup {
       }
     })
 
-    // 고른 항목 설명은 달력 아래에 둡니다.
+    // 고른 항목 설명은 일정 세 칸 아래, 같은 판 안에 둡니다.
     this.detail = scene.add
-      .text(LEFT.x + LEFT.width / 2, LEFT.y + LEFT.height + 20, '', {
+      .text(PLAN.x + PLAN.width / 2, PLAN.y + 84, '', {
         fontFamily: FontFamily.Body,
-        fontSize: '16px',
+        fontSize: '15px',
         color: '#f0e6c8',
         align: 'center',
-        wordWrap: { width: LEFT.width + 40 },
+        wordWrap: { width: PLAN.width - 28 },
       })
       .setOrigin(0.5, 0)
     this.container.add(this.detail)
