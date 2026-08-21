@@ -16,9 +16,20 @@ public/assets/pokemon/artwork/*
 !public/assets/pokemon/portrait/
 public/assets/pokemon/portrait/*
 !public/assets/pokemon/portrait/0493-아르세우스.png
+# 수업과 일을 맡은 포켓몬 그림은 손으로 그려 넣은 것이라 다시 받을 수 없습니다.
+# 여기서 잘라낸 초상화도 함께 둡니다 (npm run make:npc-portraits).
+!public/assets/pokemon/npc/
+!public/assets/pokemon/portrait/npc/
 
 # 내려받은 울음소리 1025개 (약 17MB). npm run fetch:cries 로 다시 받습니다.
 # 게임이 실제로 재생하는 것만 저장소에 둡니다.
 public/sfx/voice/*
 !public/sfx/voice/0493-아르세우스.ogg
 !public/sfx/voice/0132-메타몽.ogg
+# 일정을 시작할 때 나오는 선생들의 울음소리
+!public/sfx/voice/0820-요씽리스.ogg
+!public/sfx/voice/0235-루브도.ogg
+!public/sfx/voice/0479-로토무.ogg
+!public/sfx/voice/0465-덩쿠림보.ogg
+!public/sfx/voice/0143-잠만보.ogg
+!public/sfx/voice/0959-두드리짱.ogg

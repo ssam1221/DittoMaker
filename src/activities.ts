@@ -1,4 +1,5 @@
 import { STAT_MAX, TYPE_MAX, type RaisingState, type Stats, type TypeKey } from './raising'
+import { isWeekend, weekdayOf } from './ui/calendar'
 
 /**
  * 한 주를 쓰는 일들 — 배우러 가는 수업과 돈을 버는 일자리.
@@ -258,64 +259,275 @@ export function canAfford(state: RaisingState, activity: Activity): boolean {
   return state.money + activity.money >= 0
 }
 
-export interface ActivityResult {
+/**
+ * 그날의 성과. 컨디션이 좋고 스트레스가 낮을수록 상이 자주 나옵니다.
+ *
+ * 같은 아이가 같은 수업을 들어도 날마다 다르게 만들려고 약간의 운을
+ * 섞습니다. 다만 운의 폭보다 컨디션의 폭이 넓어서, 지쳐 있으면
+ * 아무리 운이 좋아도 상은 잘 나오지 않습니다.
+ */
+export type Grade = 'high' | 'mid' | 'low'
+
+export const GRADE_LABELS: Record<Grade, string> = {
+  high: '상',
+  mid: '중',
+  low: '하',
+}
+
+/** 성과에 곱하는 값 — 중을 1 로 두고 위아래로 벌립니다. */
+const GRADE_GAIN: Record<Grade, number> = {
+  high: 1.4,
+  mid: 1,
+  low: 0.55,
+}
+
+export function gradeOf(condition: number, stress: number, roll: number = Math.random()): Grade {
+  const score = condition - stress * 0.5 + roll * 36 - 18
+
+  if (score >= 62) return 'high'
+  if (score >= 28) return 'mid'
+  return 'low'
+}
+
+/** 하루가 끝나고 화면에 띄우는 한 줄 */
+const DAY_MESSAGES: Record<ActivityKind, Record<Grade, readonly string[]>> = {
+  lesson: {
+    high: [
+      '오늘은 아주 잘 배웠다.',
+      '하나를 알려 주니 열을 알았다.',
+      '선생이 크게 칭찬했다.',
+    ],
+    mid: ['오늘은 무난히 배웠다.', '배운 것을 몇 번이고 곱씹었다.', '빠짐없이 따라갔다.'],
+    low: [
+      '오늘은 영 집중이 되지 않았다.',
+      '몸이 무거워 자꾸 놓쳤다.',
+      '머리에 들어오는 것이 없었다.',
+    ],
+  },
+  job: {
+    high: ['오늘은 능숙하게 일을 했다.', '손이 척척 맞았다.', '주인이 흐뭇하게 바라보았다.'],
+    mid: ['시키는 대로 해냈다.', '오늘 몫은 다 채웠다.', '별일 없이 하루가 갔다.'],
+    low: ['실수가 잦아 몇 번 혼이 났다.', '손이 자꾸 미끄러졌다.', '일이 좀처럼 늘지 않았다.'],
+  },
+  rest: {
+    high: ['아무것도 하지 않고 푹 쉬었다.', '늘어지게 낮잠을 잤다.', '창밖을 오래 바라보았다.'],
+    mid: ['아무것도 하지 않고 푹 쉬었다.', '늘어지게 낮잠을 잤다.', '창밖을 오래 바라보았다.'],
+    low: ['아무것도 하지 않고 푹 쉬었다.', '늘어지게 낮잠을 잤다.', '창밖을 오래 바라보았다.'],
+  },
+}
+
+export function dayMessage(
+  kind: ActivityKind,
+  grade: Grade,
+  roll: number = Math.random(),
+): string {
+  const lines = DAY_MESSAGES[kind][grade]
+  return lines[Math.floor(roll * lines.length)] ?? lines[0]!
+}
+
+/** 일정 한 칸 — 어떤 활동을 달력의 어느 날부터 며칠 동안 하는지 */
+export interface DaySlot {
+  activity: Activity
+  year: number
+  month: number
+  /** 이 도막의 첫날 */
+  firstDay: number
+  days: number
+}
+
+/** 하루의 기록. 화면은 이것을 하루에 하나씩 넘겨 가며 보여 줍니다. */
+export interface DayLog {
+  /** 몇 번째 칸인지 (0 부터) */
+  slot: number
+  /** 짜 놓은 활동. 돈이 모자라 쉬게 되면 activity 와 달라집니다. */
+  planned: Activity
+  activity: Activity
+  /** 이 활동의 며칠째인지 (1 부터). 휴일은 세지 않습니다. */
+  dayInSlot: number
+  days: number
+  month: number
+  day: number
+  /** 0 이 일요일 */
+  weekday: number
+  /** 토·일에는 아무 일도 하지 않습니다. */
+  holiday: boolean
+  /** 휴일에는 성과가 없습니다. */
+  grade?: Grade
+  /** 그날 오간 돈 */
+  money: number
+  /** 하루가 끝난 뒤의 상태 */
   state: RaisingState
-  statGain: number
-  typeGains: ReadonlyArray<{ type: TypeKey; gain: number }>
+}
+
+export interface MonthRun {
+  logs: DayLog[]
+  state: RaisingState
+}
+
+/** 소수점을 들고 다니며 정수가 될 때마다 덜어 냅니다. */
+interface Carry {
+  value: number
+}
+
+function take(carry: Carry, amount: number): number {
+  carry.value += amount
+  const whole = Math.trunc(carry.value)
+  carry.value -= whole
+  return whole
+}
+
+const carryOf = (map: Map<string, Carry>, key: string): Carry => {
+  const found = map.get(key)
+  if (found) return found
+
+  const made: Carry = { value: 0 }
+  map.set(key, made)
+  return made
 }
 
 /**
- * 한 주를 들여 수업을 듣거나 일을 합니다.
- * 능력치와 타입 적성이 오르고, 스트레스가 쌓이며, 돈이 오갑니다.
+ * 짜 놓은 일정을 하루씩 치릅니다.
+ *
+ * 한 도막에서 얻는 총량은 예전과 같게 두고, 그것을 날수로 나눠
+ * 그날의 성과(상·중·하)를 곱합니다. 하루치는 대개 1 도 되지 않으므로
+ * 소수점을 들고 다니다가 정수가 되는 날 능력치가 한 칸 오릅니다.
+ *
+ * 돈이 모자란 칸은 예전처럼 쉬는 것으로 바뀝니다.
  */
-export function doActivity(state: RaisingState, activity: Activity): ActivityResult {
-  // 쉬는 도막은 얻는 대신 스트레스를 덜고 컨디션을 되찾습니다.
-  if (activity.kind === 'rest') {
-    const stress = clamp(state.stress - 25, 0, 100)
+export function runMonth(start: RaisingState, slots: readonly DaySlot[]): MonthRun {
+  const stats = { ...start.stats }
+  const types = { ...start.types }
 
-    return {
-      state: {
-        ...state,
-        period: state.period + 1,
-        stress,
-        // 스트레스가 남아 있으면 회복이 덜 됩니다.
-        condition: clamp(state.condition + 20 - Math.floor(stress / 5), 0, 100),
-        stats: { ...state.stats, bond: clamp(state.stats.bond + 1, 0, STAT_MAX) },
-      },
-      statGain: 0,
-      typeGains: [],
+  let money = start.money
+  let condition = start.condition
+  let stress = start.stress
+  let period = start.period
+
+  const statCarry = new Map<string, Carry>()
+  const typeCarry = new Map<string, Carry>()
+  const moneyCarry: Carry = { value: 0 }
+
+  const logs: DayLog[] = []
+
+  for (const [index, slot] of slots.entries()) {
+    const planned = slot.activity
+    // 앞 칸에서 돈을 다 썼다면 남은 칸은 쉬는 것으로 대신합니다.
+    const activity = money + planned.money >= 0 ? planned : REST
+
+    const rate = learningRate(condition)
+    const gain = GAIN[activity.kind]
+
+    // 토·일은 쉬므로, 한 도막에서 얻는 총량을 일하는 날수로 나눕니다.
+    // 그래야 주말이 몇 번 끼든 한 도막의 결과가 들쭉날쭉하지 않습니다.
+    const working =
+      [...Array(slot.days).keys()].filter(
+        (offset) => !isWeekend(slot.year, slot.month, slot.firstDay + offset),
+      ).length || slot.days
+
+    const statPerDay = (gain.stat * rate) / working
+    const typePerDay = (gain.type * rate) / working
+    const moneyPerDay = activity.money / working
+    const stressPerDay = activity.stress / working
+
+    let worked = 0
+
+    for (let offset = 0; offset < slot.days; offset += 1) {
+      const date = slot.firstDay + offset
+      const weekday = weekdayOf(slot.year, slot.month, date)
+
+      // 휴일에는 능력치도 돈도 그대로 두고 날짜만 넘깁니다.
+      if (isWeekend(slot.year, slot.month, date)) {
+        logs.push({
+          slot: index,
+          planned,
+          activity,
+          dayInSlot: worked,
+          days: slot.days,
+          month: slot.month,
+          day: date,
+          weekday,
+          holiday: true,
+          money: 0,
+          state: {
+            period,
+            plan: [],
+            money,
+            stats: { ...stats },
+            types: { ...types },
+            condition: Math.round(condition),
+            stress: Math.round(stress),
+          },
+        })
+        continue
+      }
+
+      worked += 1
+
+      const grade = gradeOf(condition, stress)
+      const multiplier = GRADE_GAIN[grade]
+
+      if (activity.kind === 'rest') {
+        // 쉬는 날은 스트레스가 풀리고 컨디션이 돌아옵니다.
+        stress = clamp(stress - 25 / working, 0, 100)
+        condition = clamp(condition + (20 - stress / 5) / working, 0, 100)
+      } else {
+        const statGain = take(carryOf(statCarry, activity.stat), statPerDay * multiplier)
+        stats[activity.stat] = clamp(stats[activity.stat] + statGain, 0, STAT_MAX)
+
+        for (const type of activity.types) {
+          const typeGain = take(carryOf(typeCarry, type), typePerDay * multiplier)
+          types[type] = clamp(types[type] + typeGain, 0, TYPE_MAX)
+        }
+
+        stress = clamp(stress + stressPerDay, 0, 100)
+        condition = clamp(condition - (8 + stress / 10) / working, 0, 100)
+      }
+
+      // 쉬는 칸은 하루하루 오르는 것이 없는 대신 마지막 날 정이 붙습니다.
+      if (activity.kind === 'rest' && worked === working) {
+        stats.bond = clamp(stats.bond + 1, 0, STAT_MAX)
+      }
+
+      const earned = take(moneyCarry, moneyPerDay)
+      money = Math.max(0, money + earned)
+
+      logs.push({
+        slot: index,
+        planned,
+        activity,
+        dayInSlot: worked,
+        days: slot.days,
+        month: slot.month,
+        day: date,
+        weekday,
+        holiday: false,
+        grade,
+        money: earned,
+        state: {
+          period,
+          plan: [],
+          money,
+          stats: { ...stats },
+          types: { ...types },
+          condition: Math.round(condition),
+          stress: Math.round(stress),
+        },
+      })
     }
+
+    period += 1
   }
 
-  const rate = learningRate(state.condition)
-  const gain = GAIN[activity.kind]
-
-  const statGain = Math.max(1, Math.round(gain.stat * rate))
-
-  const types = { ...state.types }
-  const typeGains = activity.types.map((type) => {
-    const amount = Math.max(1, Math.round(gain.type * rate))
-    types[type] = clamp(types[type] + amount, 0, TYPE_MAX)
-    return { type, gain: amount }
-  })
-
-  const stress = clamp(state.stress + activity.stress, 0, 100)
-
   return {
+    logs,
     state: {
-      ...state,
-      period: state.period + 1,
-      money: Math.max(0, state.money + activity.money),
-      stats: {
-        ...state.stats,
-        [activity.stat]: clamp(state.stats[activity.stat] + statGain, 0, STAT_MAX),
-      },
+      period,
+      plan: [],
+      money,
+      stats,
       types,
-      stress,
-      // 하고 나면 지칩니다. 스트레스가 높을수록 더 많이 깎입니다.
-      condition: clamp(state.condition - 8 - Math.floor(stress / 10), 0, 100),
+      condition: Math.round(condition),
+      stress: Math.round(stress),
     },
-    statGain,
-    typeGains,
   }
 }

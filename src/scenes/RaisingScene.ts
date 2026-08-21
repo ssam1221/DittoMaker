@@ -2,8 +2,6 @@ import Phaser from 'phaser'
 
 import {
   canAfford,
-  doActivity,
-  findActivity,
   JOBS,
   LESSONS,
   REST,
@@ -777,7 +775,7 @@ export class RaisingScene extends Phaser.Scene {
         {
           label: '진행한다',
           detail: '이대로 한 달을 보낸다.',
-          run: () => this.closeSchedule(() => this.runPlan()),
+          run: () => this.closeSchedule(() => this.startPlan()),
         },
         {
           label: '다시 짠다',
@@ -794,25 +792,17 @@ export class RaisingScene extends Phaser.Scene {
     })
   }
 
-  /** 짜 둔 세 칸을 차례대로 치릅니다. */
-  private runPlan(): void {
-    const done: string[] = []
-
-    for (const key of this.state.plan) {
-      const activity = findActivity(key)
-      if (!activity) continue
-
-      // 앞 칸에서 돈을 다 썼다면 남은 칸은 쉬는 것으로 대신합니다.
-      const actual = canAfford(this.state, activity) ? activity : REST
-      const result = doActivity(this.state, actual)
-      this.state = result.state
-
-      done.push(actual === activity ? activity.name : `${activity.name}→휴식`)
-    }
-
-    this.state.plan = []
-    this.refresh()
-    this.showNotice(`한 달이 지났다.   ${done.join('  ·  ')}`)
+  /**
+   * 일정을 확정하면 그 달을 치르는 화면으로 넘어갑니다.
+   *
+   * 담당 포켓몬의 인사부터 하루하루의 성과, 한 달 결산까지는
+   * 저쪽에서 맡고, 다 끝나면 달라진 상태를 들고 돌아옵니다.
+   */
+  private startPlan(): void {
+    this.cameras.main.fadeOut(300, 0, 0, 0)
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.scene.start(SceneKey.Activity, { ...this.save, raising: this.state })
+    })
   }
 
   /** 창을 닫고 나서 실행합니다. 창 상태를 먼저 비워야 조작이 다시 살아납니다. */

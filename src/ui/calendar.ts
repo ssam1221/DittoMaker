@@ -36,9 +36,20 @@ export function daysInMonth(year: number, month: number): number {
   return lengths[month - 1]!
 }
 
+/** 그 날짜의 요일 (0 = 일요일) */
+export function weekdayOf(year: number, month: number, day: number): number {
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay()
+}
+
+/** 토요일과 일요일은 쉽니다. */
+export function isWeekend(year: number, month: number, day: number): boolean {
+  const weekday = weekdayOf(year, month, day)
+  return weekday === 0 || weekday === 6
+}
+
 /** 그 달 1일의 요일 (0 = 일요일) */
 function firstWeekday(year: number, month: number): number {
-  return new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+  return weekdayOf(year, month, 1)
 }
 
 export interface CalendarOptions {

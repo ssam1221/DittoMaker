@@ -11,6 +11,7 @@ export const SceneKey = {
   Setup: 'Setup',
   Dialogue: 'Dialogue',
   Raising: 'Raising',
+  Activity: 'Activity',
   Village: 'Village',
   Game: 'Game',
 } as const
@@ -29,6 +30,7 @@ export const AudioKey = {
   Setup: 'setup',
   Coronet: 'coronet',
   Town: 'town',
+  Road: 'road',
 } as const
 
 /** 배경음 파일 이름 (public/music/ 기준) */
@@ -37,6 +39,7 @@ export const MusicFile = {
   Setup: '1-05. Professor Oak.mp3',
   Coronet: '1-62 - Coronet Highlands - Base.mp3',
   Town: '1-04. Pallet Town Theme.mp3',
+  Road: '1-09. Road to Viridian City - From Pallet Town.mp3',
 } as const
 
 /** 게임 메인 폰트. index.html 의 @font-face 이름과 같아야 합니다. */

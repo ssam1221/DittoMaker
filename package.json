@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "fetch:pokemon": "node scripts/fetch-pokemon.mjs",
     "make:portraits": "node scripts/make-portraits.mjs",
+    "make:npc-portraits": "node scripts/make-npc-portraits.mjs",
     "fetch:cries": "node scripts/fetch-cries.mjs"
   },
   "dependencies": {
