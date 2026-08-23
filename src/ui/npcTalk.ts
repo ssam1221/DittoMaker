@@ -34,6 +34,13 @@ const ART_MAX_HEIGHT = ART_BOTTOM - 28
 /** 나타날 때 이만큼 아래에서 떠오릅니다 */
 const ART_RISE = 14
 
+export interface NpcTalkOptions {
+  /** 그림 높이의 위쪽 한계. 좁게 잡으면 뒤 배경이 더 보입니다. */
+  artMaxHeight?: number
+  /** 그림이 설 가로 자리. 기본은 화면 한가운데입니다. */
+  artX?: number
+}
+
 /** 한 글자를 찍는 간격. 한 줄로 끝나므로 아르세우스보다 조금 빠릅니다. */
 const TYPE_MS = 38
 
@@ -57,6 +64,7 @@ export class NpcTalk {
     private readonly scene: Phaser.Scene,
     private readonly entries: readonly Greeting[],
     private readonly onDone: () => void,
+    private readonly options: NpcTalkOptions = {},
   ) {
     this.container = scene.add.container(0, 0)
     this.container.setDepth(120)
@@ -218,9 +226,13 @@ export class NpcTalk {
 
     // 대화창 바로 위에 서 있게 아래를 기준으로 놓습니다. 가운데를 기준으로
     // 잡으면 망치를 든 두드리짱처럼 위로 긴 그림이 화면 밖으로 잘립니다.
-    const art = this.scene.add.image(GAME_WIDTH / 2, ART_BOTTOM + ART_RISE, npcArtKey(entry.npc.key))
+    const art = this.scene.add.image(
+      this.options.artX ?? GAME_WIDTH / 2,
+      ART_BOTTOM + ART_RISE,
+      npcArtKey(entry.npc.key),
+    )
     art.setOrigin(0.5, 1)
-    art.setScale(Math.min(ART_MAX_HEIGHT / art.height, 1))
+    art.setScale(Math.min((this.options.artMaxHeight ?? ART_MAX_HEIGHT) / art.height, 1))
     art.setAlpha(0)
     this.art = art
 

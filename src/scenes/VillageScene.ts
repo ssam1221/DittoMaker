@@ -1,8 +1,11 @@
 import Phaser from 'phaser'
 
+import { cryPath } from '../audio/sfx'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
+import { HOST_NPCS, hostGreeting, npcArtKey, npcCryKey, npcPortraitKey } from '../npc'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
+import { NpcTalk } from '../ui/npcTalk'
 import { addChoice, drawParchmentFrame } from '../ui/panel'
 
 const TOWN_KEY = 'town'
@@ -19,7 +22,16 @@ interface Place {
   description: string
   /** 그림 위에서 그 건물이 차지하는 자리 (원본 픽셀) */
   area: { x1: number; y1: number; x2: number; y2: number }
-  ready?: boolean
+  /**
+   * 방향키를 눌렀을 때 갈 건물.
+   *
+   * 건물이 격자로 놓여 있지 않아 자리만 보고 자동으로 정하면 엉뚱한
+   * 곳으로 튑니다. 그래서 네 방향을 하나씩 적어 둡니다.
+   */
+  left: string
+  right: string
+  up: string
+  down: string
 }
 
 const PLACES: readonly Place[] = [
@@ -28,30 +40,51 @@ const PLACES: readonly Place[] = [
     name: '프렌들리숍',
     description: '먹을 것과 쓸 것을 파는 가게.',
     area: { x1: 265, y1: 165, x2: 570, y2: 360 },
+    left: 'neighbour',
+    right: 'gym',
+    up: 'center',
+    down: 'center',
   },
   {
     key: 'gym',
     name: '체육관',
     description: '겨루며 몸을 단련하는 곳.',
-    area: { x1: 635, y1: 55, x2: 995, y2: 345 },
+    // 오른쪽 깃발까지 품도록 넉넉히 잡습니다.
+    area: { x1: 635, y1: 55, x2: 1040, y2: 345 },
+    left: 'shop',
+    right: 'neighbour',
+    up: 'neighbour',
+    down: 'neighbour',
   },
   {
     key: 'center',
     name: '포켓몬센터',
     description: '지친 포켓몬을 쉬게 하는 곳.',
     area: { x1: 245, y1: 400, x2: 545, y2: 645 },
+    left: 'lab',
+    right: 'lab',
+    up: 'shop',
+    down: 'shop',
   },
   {
     key: 'lab',
     name: '연구소',
     description: '지금 어떤 포켓몬에 가까워졌는지 살펴봐 준다.',
     area: { x1: 955, y1: 390, x2: 1205, y2: 605 },
+    left: 'center',
+    right: 'center',
+    up: 'gym',
+    down: 'gym',
   },
   {
     key: 'neighbour',
     name: '이웃집',
     description: '마을 사람과 이야기를 나눈다.',
     area: { x1: 1175, y1: 160, x2: 1450, y2: 335 },
+    left: 'gym',
+    right: 'shop',
+    up: 'gym',
+    down: 'gym',
   },
 ]
 
@@ -66,7 +99,10 @@ export class VillageScene extends Phaser.Scene {
   private selected = 0
 
   private description!: Phaser.GameObjects.Text
+  private hint!: Phaser.GameObjects.Text
   private notice?: Phaser.GameObjects.Text
+  /** 건물 주인이 인사하는 동안 열려 있는 창 */
+  private talk?: NpcTalk
 
   constructor() {
     super(SceneKey.Village)
@@ -79,12 +115,20 @@ export class VillageScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image(TOWN_KEY, 'assets/background/town.png')
+
+    // 건물 앞에서 맞아 주는 포켓몬들
+    for (const npc of HOST_NPCS) {
+      this.load.image(npcArtKey(npc.key), `assets/pokemon/npc/${npc.key}.png`)
+      this.load.image(npcPortraitKey(npc.key), `assets/pokemon/portrait/npc/${npc.key}.png`)
+      this.load.audio(npcCryKey(npc.key), cryPath(npc.cry))
+    }
   }
 
   create(): void {
     this.labels = []
     this.frames = []
     this.selected = 0
+    this.talk = undefined
 
     drawParchmentFrame(this)
     this.createTown()
@@ -100,14 +144,14 @@ export class VillageScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
     this.description.setStroke('#2e2416', 5)
 
-    this.add
+    this.hint = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 16, '방향키 이동    Enter 들어가기    Esc 돌아가기', {
         fontFamily: FontFamily.Body,
         fontSize: '15px',
         color: '#efe4c4',
       })
       .setOrigin(0.5, 0.5)
-      .setStroke('#2e2416', 5)
+    this.hint.setStroke('#2e2416', 5)
 
     this.bindKeyboard()
     this.refresh()
@@ -166,22 +210,82 @@ export class VillageScene extends Phaser.Scene {
   private bindKeyboard(): void {
     const keyboard = this.input.keyboard!
 
-    keyboard.on('keydown-LEFT', () => this.move(-1))
-    keyboard.on('keydown-RIGHT', () => this.move(1))
-    keyboard.on('keydown-UP', () => this.move(-1))
-    keyboard.on('keydown-DOWN', () => this.move(1))
-    keyboard.on('keydown-ENTER', () => this.enter(PLACES[this.selected]!))
-    keyboard.on('keydown-SPACE', () => this.enter(PLACES[this.selected]!))
-    keyboard.on('keydown-ESC', () => this.leave())
+    keyboard.on('keydown-LEFT', () => this.move('left'))
+    keyboard.on('keydown-RIGHT', () => this.move('right'))
+    keyboard.on('keydown-UP', () => this.move('up'))
+    keyboard.on('keydown-DOWN', () => this.move('down'))
+    keyboard.on('keydown-ENTER', () => this.submit())
+    keyboard.on('keydown-SPACE', () => this.submit())
+    keyboard.on('keydown-ESC', () => this.cancel())
   }
 
-  private move(delta: number): void {
-    this.selected = (this.selected + delta + PLACES.length) % PLACES.length
+  private move(direction: 'left' | 'right' | 'up' | 'down'): void {
+    // 인사를 듣는 중에는 마을을 돌아다닐 수 없습니다.
+    if (this.talk) return
+
+    const here = PLACES[this.selected]
+    if (!here) return
+
+    const next = PLACES.findIndex((place) => place.key === here[direction])
+    if (next < 0) return
+
+    this.selected = next
     this.refresh()
   }
 
+  private submit(): void {
+    if (this.talk) {
+      this.talk.submit()
+      return
+    }
+
+    this.enter(PLACES[this.selected]!)
+  }
+
+  private cancel(): void {
+    if (this.talk) {
+      this.talk.cancel()
+      return
+    }
+
+    this.leave()
+  }
+
+  /**
+   * 건물에 들어갑니다. 안은 아직 없으므로 문 앞에서 주인이 인사만 합니다.
+   * 주인이 없는 건물은 준비 중이라고 알립니다.
+   */
   private enter(place: Place): void {
-    this.showNotice(`${withJosa(place.name, '은', '는')} 아직 준비 중입니다`)
+    if (this.talk) return
+
+    const greeting = hostGreeting(place.key)
+    if (!greeting) {
+      this.showNotice(`${withJosa(place.name, '은', '는')} 아직 준비 중입니다`)
+      return
+    }
+
+    this.notice?.destroy()
+    this.notice = undefined
+
+    // 인사하는 동안에는 마을 쪽 글자를 감춥니다. 대화창 아래로 비쳐 보입니다.
+    this.showTownText(false)
+
+    this.talk = new NpcTalk(
+      this,
+      [greeting],
+      () => {
+        this.talk = undefined
+        this.showTownText(true)
+      },
+      // 마을 그림을 가리지 않도록 작게, 오른쪽에 세웁니다.
+      { artMaxHeight: 224, artX: GAME_WIDTH * 0.72 },
+    )
+  }
+
+  private showTownText(visible: boolean): void {
+    this.description.setVisible(visible)
+    this.hint.setVisible(visible)
+    this.labels.forEach((label) => label.setVisible(visible))
   }
 
   private refresh(): void {

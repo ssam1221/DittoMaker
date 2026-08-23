@@ -28,6 +28,8 @@ export const NPCS = {
   art: { key: 'art', name: '루브도', role: '미술 선생', cry: '0235-루브도' },
   music: { key: 'music', name: '로토무', role: '음악 선생', cry: '0479-로토무' },
   prof: { key: 'prof', name: '덩쿠림보', role: '약학 선생', cry: '0465-덩쿠림보' },
+  nurse: { key: 'nurse', name: '럭키', role: '포켓몬센터 접수', cry: '0113-럭키' },
+  clerk: { key: 'clerk', name: '나옹', role: '프렌들리숍 점원', cry: '0052-나옹' },
   oldstory: { key: 'oldstory', name: '잠만보', role: '이야기꾼', cry: '0143-잠만보' },
   build: { key: 'build', name: '두드리짱', role: '현장 반장', cry: '0959-두드리짱' },
 } as const satisfies Record<string, Npc>
@@ -195,3 +197,61 @@ export function farewellsForPlan(plan: readonly string[]): Array<Greeting | unde
 export const npcArtKey = (key: string): string => `npc-${key}`
 export const npcPortraitKey = (key: string): string => `npc-face-${key}`
 export const npcCryKey = (key: string): string => `npc-cry-${key}`
+
+/**
+ * 마을의 건물마다 문 앞에서 맞아 주는 포켓몬.
+ *
+ * 같은 포켓몬이라도 자리가 다르면 부르는 이름이 달라지므로 (덩쿠림보는
+ * 수업에서는 약학 선생이지만 연구소에서는 소장입니다) 여기서 역할을
+ * 덮어씁니다. 건물 안은 아직 없어서 지금은 인사만 하고 물러납니다.
+ */
+interface Host {
+  npc: NpcKey
+  /** 그 자리에서만 쓰는 호칭. 없으면 NPCS 의 것을 그대로 씁니다. */
+  role?: string
+  lines: readonly string[]
+}
+
+const HOSTS: Readonly<Record<string, Host>> = {
+  center: {
+    npc: 'nurse',
+    lines: [
+      '어서 오세요! 포켓몬센터에 오신 것을 환영합니다.',
+      '어서 오세요. 오늘은 그 아이 얼굴빛이 좋아 보이네요.',
+      '어서 오세요! 쉬어 가실 거라면 얼마든지요.',
+    ],
+  },
+  shop: {
+    npc: 'clerk',
+    lines: [
+      '어서 옵쇼! 오늘은 뭘 찾으러 왔냐옹?',
+      '어서 옵쇼! 좋은 물건 많이 들어왔다옹.',
+      '어서 옵쇼! 구경만 해도 괜찮다옹.',
+    ],
+  },
+  lab: {
+    npc: 'prof',
+    role: '연구소장',
+    lines: [
+      '오, 왔구나. 그 아이가 어디까지 자랐는지 한번 보자꾸나.',
+      '어서 오렴. 오늘은 무엇이 궁금해서 왔느냐?',
+      '왔구나. 자료는 늘 여기 있으니 편히 보거라.',
+    ],
+  },
+}
+
+/** 그 건물의 주인이 건네는 인사. 주인이 없는 건물이면 아무도 나오지 않습니다. */
+export function hostGreeting(placeKey: string): Greeting | undefined {
+  const host = HOSTS[placeKey]
+  if (!host) return undefined
+
+  const npc = NPCS[host.npc]
+  const line = host.lines[Math.floor(Math.random() * host.lines.length)] ?? host.lines[0]!
+
+  return { npc: host.role ? { ...npc, role: host.role } : npc, line }
+}
+
+/** 마을에서 맞아 주는 포켓몬들 — 마을 씬이 미리 받아 둘 목록입니다. */
+export const HOST_NPCS: readonly Npc[] = [...new Set(Object.values(HOSTS).map((h) => h.npc))].map(
+  (key) => NPCS[key],
+)

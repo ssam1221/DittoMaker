@@ -33,3 +33,6 @@ public/sfx/voice/*
 !public/sfx/voice/0465-덩쿠림보.ogg
 !public/sfx/voice/0143-잠만보.ogg
 !public/sfx/voice/0959-두드리짱.ogg
+# 마을에서 맞아 주는 포켓몬들의 울음소리
+!public/sfx/voice/0113-럭키.ogg
+!public/sfx/voice/0052-나옹.ogg
