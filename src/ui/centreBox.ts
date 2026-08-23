@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH } from '../constants'
 import { centreCost, centreOpen, centreRest, type RaisingState } from '../raising'
+import { CellColor, cellColor, paintCell, type CellBounds } from './cell'
 import { withJosa } from './hangul'
 
 /**
@@ -11,10 +12,6 @@ import { withJosa } from './hangul'
  * 받습니다. 지쳐 있을수록 비싸지므로 언제 들르는지가 곧 선택이 됩니다.
  * 한 달에 한 번뿐이라, 이미 다녀왔으면 안내만 하고 물러납니다.
  */
-
-const COLOR_IDLE = '#e8dfc4'
-const COLOR_SELECTED = '#ffd447'
-const COLOR_POOR = '#8d8471'
 
 const BOX = { x: 268, y: 148, width: 424, height: 250 }
 
@@ -31,7 +28,7 @@ export interface CentreBoxOptions {
 interface Cell {
   frame: Phaser.GameObjects.Graphics
   label: Phaser.GameObjects.Text
-  bounds: { x: number; y: number; width: number; height: number }
+  bounds: CellBounds
   enabled: boolean
 }
 
@@ -85,7 +82,7 @@ export class CentreBox {
       .text(BOX.x + BOX.width - 26, BOX.y + 26, `₽ ${this.state.money.toLocaleString()}`, {
         fontFamily: FontFamily.Body,
         fontSize: '16px',
-        color: COLOR_SELECTED,
+        color: CellColor.Selected,
       })
       .setOrigin(1, 0)
 
@@ -93,7 +90,7 @@ export class CentreBox {
       .text(BOX.x + BOX.width / 2, BOX.y + 102, '', {
         fontFamily: FontFamily.Body,
         fontSize: '17px',
-        color: COLOR_IDLE,
+        color: CellColor.Idle,
         align: 'center',
         lineSpacing: 8,
         wordWrap: { width: BOX.width - 56 },
@@ -122,7 +119,7 @@ export class CentreBox {
       .text(x + CELL.width / 2, CELL_Y + CELL.height / 2, text, {
         fontFamily: FontFamily.Body,
         fontSize: '18px',
-        color: COLOR_IDLE,
+        color: CellColor.Idle,
       })
       .setOrigin(0.5, 0.5)
 
@@ -206,23 +203,17 @@ export class CentreBox {
     this.refresh()
   }
 
-  private say(text: string, color: string = COLOR_IDLE): void {
+  private say(text: string, color: string = CellColor.Idle): void {
     this.message.setColor(color)
     this.message.setText(text)
   }
 
   private refresh(): void {
     this.cells.forEach((cell, i) => {
-      const chosen = i === this.index
-      const dim = !cell.enabled
+      const look = { chosen: i === this.index, dim: !cell.enabled }
 
-      cell.frame.clear()
-      cell.frame.fillStyle(chosen ? 0x3b3266 : 0x2e2851, dim && !chosen ? 0.6 : 1)
-      cell.frame.fillRect(cell.bounds.x, cell.bounds.y, cell.bounds.width, cell.bounds.height)
-      cell.frame.lineStyle(chosen ? 2 : 1, chosen ? 0xffd447 : 0x6b5ea8, 1)
-      cell.frame.strokeRect(cell.bounds.x, cell.bounds.y, cell.bounds.width, cell.bounds.height)
-
-      cell.label.setColor(chosen ? COLOR_SELECTED : dim ? COLOR_POOR : COLOR_IDLE)
+      paintCell(cell.frame, cell.bounds, look)
+      cell.label.setColor(cellColor(look))
     })
   }
 }

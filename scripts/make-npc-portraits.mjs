@@ -38,6 +38,15 @@ const FACES = {
   nurse: { cx: 0.43, cy: 0.2, size: 0.5 },
   oldstory: { cx: 0.545, cy: 0.35, size: 0.45 },
   prof: { cx: 0.5125, cy: 0.4875, size: 0.55 },
+  // --- 체육관에서 상대해 주는 포켓몬들 ---
+  magikarp: { cx: 0.21, cy: 0.425, size: 0.48 },
+  rattata: { cx: 0.35, cy: 0.47, size: 0.43 },
+  onix: { cx: 0.32, cy: 0.46, size: 0.42 },
+  marowak: { cx: 0.35, cy: 0.5, size: 0.48 },
+  hitmonchan: { cx: 0.72, cy: 0.19, size: 0.36 },
+  tauros: { cx: 0.24, cy: 0.43, size: 0.435 },
+  alakazam: { cx: 0.525, cy: 0.36, size: 0.34 },
+  dragonite: { cx: 0.38, cy: 0.26, size: 0.374 },
 }
 
 /** 비율을 실제 픽셀 좌표로. 그림 밖으로 나가지 않게 안쪽으로 밀어 넣습니다. */

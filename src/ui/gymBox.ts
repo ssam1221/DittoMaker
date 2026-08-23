@@ -1,16 +1,17 @@
 import Phaser from 'phaser'
 
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH } from '../constants'
-import { berryIconKey, BERRIES, buyBerry, canAfford, type Berry } from '../items'
+import { CHALLENGERS, opensTo, statTotal, type Challenger } from '../gym'
+import { npcPortraitKey } from '../npc'
 import type { RaisingState } from '../raising'
 import { CellColor, cellColor, paintCell, type CellBounds } from './cell'
+import { withJosa } from './hangul'
 
 /**
- * 프렌들리숍의 열매 진열대.
+ * 체육관에서 누구와 이야기할지 고르는 창.
  *
- * 옛 육성 시뮬레이션의 행상인 화면처럼, 한 칸이 곧 버튼 하나입니다.
- * 칸 안에 아이콘·이름·값·효과가 함께 들어 있어 목록을 훑지 않고도
- * 무엇을 사는지 한눈에 보입니다. 마지막 칸은 관둔다입니다.
+ * 약한 쪽부터 늘어놓고, 능력치 총합이 모자란 상대는 흐리게 두어
+ * 무엇을 더 키워야 다음 문이 열리는지 보이게 합니다.
  */
 
 const BOX = { x: 128, y: 42, width: 704, height: 470 }
@@ -21,51 +22,45 @@ const GRID_LEFT = BOX.x + (BOX.width - (CELL.width * COLUMNS + CELL.gapX * (COLU
 const GRID_TOP = BOX.y + 84
 
 const ICON = 46
-const ROWS = Math.ceil(BERRIES.length / COLUMNS)
+const ROWS = Math.ceil(CHALLENGERS.length / COLUMNS)
 
-/** 격자가 끝나는 자리. 아래에 한마디와 관둔다 칸이 차례로 놓입니다. */
 const GRID_BOTTOM = GRID_TOP + ROWS * CELL.height + (ROWS - 1) * CELL.gapY
 const MESSAGE_Y = GRID_BOTTOM + 20
 
-/** 관둔다 칸 — 격자 아래에 한 줄로 놓습니다. */
-const QUIT = BERRIES.length
+const QUIT = CHALLENGERS.length
 const QUIT_WIDTH = 168
 const QUIT_HEIGHT = 36
 const QUIT_Y = MESSAGE_Y + 22
 
-export interface ShopBoxOptions {
-  /** 메타몽의 이름. 먹였을 때의 말에 씁니다. */
-  name: string
+export interface GymBoxOptions {
   state: RaisingState
-  /** 산 뒤의 상태를 돌려줍니다. */
-  onBuy: (state: RaisingState) => void
+  /** 상대해 주는 포켓몬을 골랐을 때 */
+  onPick: (challenger: Challenger) => void
   onCancel: () => void
 }
 
-/** 칸 하나를 이루는 것들 */
 interface Cell {
   frame: Phaser.GameObjects.Graphics
   texts: Phaser.GameObjects.Text[]
   icon?: Phaser.GameObjects.Image
   bounds: CellBounds
+  open: boolean
 }
 
-export class ShopBox {
+export class GymBox {
   private readonly container: Phaser.GameObjects.Container
   private readonly cells: Cell[] = []
-  private readonly moneyText: Phaser.GameObjects.Text
   private readonly message: Phaser.GameObjects.Text
 
   private index = 0
-  /** 관둔다에서 격자로 돌아올 때 쓰는 마지막 칸 */
   private lastColumn = 0
-  private state: RaisingState
+  private readonly total: number
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly options: ShopBoxOptions,
+    private readonly options: GymBoxOptions,
   ) {
-    this.state = options.state
+    this.total = statTotal(options.state.stats)
 
     this.container = scene.add.container(0, 0)
     this.container.setDepth(110)
@@ -91,7 +86,7 @@ export class ShopBox {
     box.lineBetween(BOX.x + 24, BOX.y + 66, BOX.x + BOX.width - 24, BOX.y + 66)
 
     const title = scene.add
-      .text(BOX.x + 32, BOX.y + 22, '프렌들리숍', {
+      .text(BOX.x + 32, BOX.y + 22, '체육관', {
         fontFamily: FontFamily.Body,
         fontSize: '22px',
         color: '#f6efdc',
@@ -99,68 +94,77 @@ export class ShopBox {
       .setOrigin(0, 0)
 
     const subtitle = scene.add
-      .text(BOX.x + 152, BOX.y + 28, '고르면 그 자리에서 한 알 먹입니다.', {
+      .text(BOX.x + 122, BOX.y + 28, '어느 포켓몬과 대화를 할까?', {
         fontFamily: FontFamily.Body,
         fontSize: '14px',
         color: CellColor.Detail,
       })
       .setOrigin(0, 0)
 
-    this.moneyText = scene.add
-      .text(BOX.x + BOX.width - 32, BOX.y + 24, '', {
+    const total = scene.add
+      .text(BOX.x + BOX.width - 32, BOX.y + 24, `능력치 총합 ${this.total}`, {
         fontFamily: FontFamily.Body,
-        fontSize: '20px',
+        fontSize: '18px',
         color: CellColor.Selected,
       })
       .setOrigin(1, 0)
 
-    this.container.add([shade, box, title, subtitle, this.moneyText])
+    this.container.add([shade, box, title, subtitle, total])
 
-    BERRIES.forEach((berry, i) => this.addBerryCell(berry, i))
+    CHALLENGERS.forEach((challenger, i) => this.addCell(challenger, i))
     this.addQuitCell()
 
     this.message = scene.add
       .text(BOX.x + BOX.width / 2, MESSAGE_Y, '', {
         fontFamily: FontFamily.Body,
         fontSize: '16px',
-        color: '#cfe6b0',
+        color: CellColor.Detail,
         align: 'center',
         wordWrap: { width: BOX.width - 60 },
       })
       .setOrigin(0.5, 0.5)
 
     this.container.add(this.message)
+
+    // 상대해 주는 마지막 사람에게 커서를 둡니다. 대개 그쪽에 볼일이 있습니다.
+    const last = CHALLENGERS.reduce(
+      (best, challenger, i) => (opensTo(challenger, this.total) ? i : best),
+      -1,
+    )
+    this.index = last < 0 ? QUIT : last
+    this.lastColumn = this.index === QUIT ? 0 : this.index % COLUMNS
+
     this.refresh()
   }
 
-  /** 아이콘·이름·값·효과가 한 칸에 들어간 버튼 */
-  private addBerryCell(berry: Berry, i: number): void {
+  private addCell(challenger: Challenger, i: number): void {
     const x = GRID_LEFT + (i % COLUMNS) * (CELL.width + CELL.gapX)
     const y = GRID_TOP + Math.floor(i / COLUMNS) * (CELL.height + CELL.gapY)
     const bounds = { x, y, width: CELL.width, height: CELL.height }
+    const open = opensTo(challenger, this.total)
 
     const frame = this.scene.add.graphics()
 
     const textLeft = x + 14 + ICON + 14
-    const name = this.label(textLeft, y + 15, berry.name, '18px', 0)
-    const price = this.label(
-      x + CELL.width - 14,
-      y + 17,
-      `₽ ${berry.price.toLocaleString()}`,
-      '16px',
-      1,
+    const name = this.label(textLeft, y + 15, challenger.name, '18px', 0)
+    const need = this.label(x + CELL.width - 14, y + 17, `총합 ${challenger.need}`, '15px', 1)
+    const under = this.label(
+      textLeft,
+      y + 42,
+      open ? challenger.role : '아직 상대해 주지 않는다',
+      '15px',
+      0,
     )
-    const effect = this.label(textLeft, y + 42, berry.effect, '15px', 0)
 
     const icon = this.scene.add.image(
       x + 14 + ICON / 2,
       y + CELL.height / 2,
-      berryIconKey(berry.key),
+      npcPortraitKey(challenger.key),
     )
     icon.setDisplaySize(ICON, ICON)
 
-    this.cells.push({ frame, texts: [name, price, effect], icon, bounds })
-    this.container.add([frame, icon, name, price, effect])
+    this.cells.push({ frame, texts: [name, need, under], icon, bounds, open })
+    this.container.add([frame, icon, name, need, under])
     this.makeClickable(bounds, i)
   }
 
@@ -169,9 +173,16 @@ export class ShopBox {
     const bounds = { x, y: QUIT_Y, width: QUIT_WIDTH, height: QUIT_HEIGHT }
 
     const frame = this.scene.add.graphics()
-    const label = this.label(x + QUIT_WIDTH / 2, QUIT_Y + QUIT_HEIGHT / 2, '관둔다', '18px', 0.5, 0.5)
+    const label = this.label(
+      x + QUIT_WIDTH / 2,
+      QUIT_Y + QUIT_HEIGHT / 2,
+      '관둔다',
+      '18px',
+      0.5,
+      0.5,
+    )
 
-    this.cells.push({ frame, texts: [label], bounds })
+    this.cells.push({ frame, texts: [label], bounds, open: true })
     this.container.add([frame, label])
     this.makeClickable(bounds, QUIT)
   }
@@ -211,22 +222,20 @@ export class ShopBox {
   /** 좌우는 칸을, 위아래는 줄을 옮깁니다. */
   move(delta: number, axis: 'x' | 'y'): void {
     if (axis === 'x') {
-      // 관둔다는 한 줄을 혼자 쓰므로 좌우로 갈 곳이 없습니다.
       if (this.index === QUIT) return
 
       const row = Math.floor(this.index / COLUMNS)
       this.lastColumn = (this.lastColumn + delta + COLUMNS) % COLUMNS
-      this.index = Math.min(row * COLUMNS + this.lastColumn, BERRIES.length - 1)
+      this.index = Math.min(row * COLUMNS + this.lastColumn, CHALLENGERS.length - 1)
       this.refresh()
       return
     }
 
-    // 격자 아래에 관둔다가 한 줄 더 있다고 보고 셉니다.
     const row = this.index === QUIT ? ROWS : Math.floor(this.index / COLUMNS)
     const next = (row + delta + ROWS + 1) % (ROWS + 1)
 
     this.index =
-      next === ROWS ? QUIT : Math.min(next * COLUMNS + this.lastColumn, BERRIES.length - 1)
+      next === ROWS ? QUIT : Math.min(next * COLUMNS + this.lastColumn, CHALLENGERS.length - 1)
     this.refresh()
   }
 
@@ -236,7 +245,18 @@ export class ShopBox {
       return
     }
 
-    this.buy()
+    const challenger = CHALLENGERS[this.index]
+    if (!challenger) return
+
+    if (!opensTo(challenger, this.total)) {
+      this.message.setColor('#e8a0a0')
+      this.message.setText(
+        `능력치 총합이 ${challenger.need - this.total} 만큼 모자랍니다. (지금 ${this.total})`,
+      )
+      return
+    }
+
+    this.options.onPick(challenger)
   }
 
   cancel(): void {
@@ -248,44 +268,27 @@ export class ShopBox {
     this.container.destroy(true)
   }
 
-  private buy(): void {
-    const berry = BERRIES[this.index]
-    if (!berry) return
-
-    if (!canAfford(this.state, berry)) {
-      this.say(`돈이 모자랍니다. (₽ ${berry.price.toLocaleString()})`, '#e8a0a0')
-      return
-    }
-
-    const result = buyBerry(this.state, berry, this.options.name)
-    this.state = result.state
-    this.options.onBuy(result.state)
-    this.say(result.message, '#cfe6b0')
-    this.refresh()
-  }
-
-  private say(text: string, color: string): void {
-    this.message.setColor(color)
-    this.message.setText(text)
-  }
-
   private refresh(): void {
-    this.moneyText.setText(`₽ ${this.state.money.toLocaleString()}`)
-
     this.cells.forEach((cell, i) => {
-      const chosen = i === this.index
-      const berry = BERRIES[i]
-      const poor = berry ? !canAfford(this.state, berry) : false
+      const look = { chosen: i === this.index, dim: !cell.open }
 
-      const look = { chosen, dim: poor }
       paintCell(cell.frame, cell.bounds, look)
-
       const color = cellColor(look)
+
       cell.texts.forEach((text, n) => {
-        // 효과 줄은 고르지 않았을 때 한 단계 죽여 이름이 먼저 읽히게 합니다.
-        text.setColor(chosen || poor ? color : n === 2 ? CellColor.Detail : color)
+        // 아래 줄은 고르지 않았을 때 한 단계 죽여 이름이 먼저 읽히게 합니다.
+        text.setColor(look.chosen || look.dim ? color : n === 2 ? CellColor.Detail : color)
       })
-      cell.icon?.setAlpha(poor && !chosen ? 0.45 : 1)
+      // 아직 만나 주지 않는 상대는 얼굴도 흐리게 둡니다.
+      cell.icon?.setAlpha(cell.open ? 1 : 0.35)
     })
+
+    const here = CHALLENGERS[this.index]
+    this.message.setColor(CellColor.Detail)
+    this.message.setText(
+      here && !opensTo(here, this.total)
+        ? `${withJosa(here.name, '은', '는')} 아직 상대해 주지 않는다. 총합 ${here.need} 부터.`
+        : '',
+    )
   }
 }

@@ -2,12 +2,14 @@ import Phaser from 'phaser'
 
 import { cryPath } from '../audio/sfx'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
+import { CHALLENGERS, lineFrom, type Challenger } from '../gym'
 import { berryIconKey, BERRIES } from '../items'
 import { HOST_NPCS, hostGreeting, npcArtKey, npcCryKey, npcPortraitKey } from '../npc'
 import { ensureRaisingState, type RaisingState } from '../raising'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
 import { CentreBox } from '../ui/centreBox'
+import { GymBox } from '../ui/gymBox'
 import { NpcTalk } from '../ui/npcTalk'
 import { addChoice, drawParchmentFrame } from '../ui/panel'
 import { ShopBox } from '../ui/shopBox'
@@ -92,6 +94,9 @@ const PLACES: readonly Place[] = [
   },
 ]
 
+/** 안이 만들어져 있는 건물 */
+const INSIDES = new Set(['shop', 'center', 'gym'])
+
 /**
  * 마을 화면. 그림 위의 건물을 골라 들어갑니다.
  * 건물 안은 아직 만들지 않았습니다.
@@ -112,6 +117,8 @@ export class VillageScene extends Phaser.Scene {
   private shop?: ShopBox
   /** 포켓몬센터 접수대 */
   private centre?: CentreBox
+  /** 체육관에서 누구와 말할지 고르는 창 */
+  private gym?: GymBox
 
   constructor() {
     super(SceneKey.Village)
@@ -138,6 +145,16 @@ export class VillageScene extends Phaser.Scene {
     for (const berry of BERRIES) {
       this.load.image(berryIconKey(berry.key), `assets/items/${berry.key}.png`)
     }
+
+    // 체육관에서 만나는 포켓몬들
+    for (const challenger of CHALLENGERS) {
+      this.load.image(npcArtKey(challenger.key), `assets/pokemon/npc/${challenger.key}.png`)
+      this.load.image(
+        npcPortraitKey(challenger.key),
+        `assets/pokemon/portrait/npc/${challenger.key}.png`,
+      )
+      this.load.audio(npcCryKey(challenger.key), cryPath(challenger.cry))
+    }
   }
 
   create(): void {
@@ -147,6 +164,7 @@ export class VillageScene extends Phaser.Scene {
     this.talk = undefined
     this.shop = undefined
     this.centre = undefined
+    this.gym = undefined
 
     drawParchmentFrame(this)
     this.createTown()
@@ -251,6 +269,14 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (this.gym) {
+      if (direction === 'left') this.gym.move(-1, 'x')
+      if (direction === 'right') this.gym.move(1, 'x')
+      if (direction === 'up') this.gym.move(-1, 'y')
+      if (direction === 'down') this.gym.move(1, 'y')
+      return
+    }
+
     // 인사를 듣는 중에는 마을을 돌아다닐 수 없습니다.
     if (this.talk) return
 
@@ -275,6 +301,11 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (this.gym) {
+      this.gym.submit()
+      return
+    }
+
     if (this.talk) {
       this.talk.submit()
       return
@@ -294,6 +325,11 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (this.gym) {
+      this.gym.cancel()
+      return
+    }
+
     if (this.talk) {
       this.talk.cancel()
       return
@@ -310,7 +346,7 @@ export class VillageScene extends Phaser.Scene {
     if (this.talk) return
 
     const greeting = hostGreeting(place.key)
-    if (!greeting) {
+    if (!greeting && !INSIDES.has(place.key)) {
       this.showNotice(`${withJosa(place.name, '은', '는')} 아직 준비 중입니다`)
       return
     }
@@ -318,8 +354,14 @@ export class VillageScene extends Phaser.Scene {
     this.notice?.destroy()
     this.notice = undefined
 
-    // 인사하는 동안에는 마을 쪽 글자를 감춥니다. 대화창 아래로 비쳐 보입니다.
+    // 안에 들어가 있는 동안에는 마을 쪽 글자를 감춥니다. 창 아래로 비쳐 보입니다.
     this.showTownText(false)
+
+    // 체육관처럼 문 앞을 지키는 사람이 없는 곳은 곧장 들어갑니다.
+    if (!greeting) {
+      this.openInside(place)
+      return
+    }
 
     this.talk = new NpcTalk(
       this,
@@ -353,6 +395,11 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (place.key === 'gym') {
+      this.openGym()
+      return
+    }
+
     if (place.key === 'center') {
       this.centre = new CentreBox(this, {
         name: this.save.dittoName,
@@ -369,6 +416,37 @@ export class VillageScene extends Phaser.Scene {
     }
 
     this.showTownText(true)
+  }
+
+  /**
+   * 체육관 안. 상대해 주는 포켓몬을 골라 이야기하고, 끝나면 다시
+   * 목록으로 돌아옵니다. 한 번에 한 사람만 만나는 것이 아니라
+   * 성에 들른 김에 여럿을 만나는 쪽이 자연스럽습니다.
+   */
+  private openGym(): void {
+    this.gym = new GymBox(this, {
+      state: this.state,
+      onPick: (challenger) => this.talkTo(challenger),
+      onCancel: () => {
+        this.gym = undefined
+        this.showTownText(true)
+      },
+    })
+  }
+
+  private talkTo(challenger: Challenger): void {
+    this.gym?.close()
+    this.gym = undefined
+
+    this.talk = new NpcTalk(
+      this,
+      [{ npc: challenger, line: lineFrom(challenger) }],
+      () => {
+        this.talk = undefined
+        this.openGym()
+      },
+      { artMaxHeight: 224, artX: GAME_WIDTH * 0.72 },
+    )
   }
 
   private showTownText(visible: boolean): void {
