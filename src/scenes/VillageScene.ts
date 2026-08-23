@@ -53,8 +53,8 @@ const PLACES: readonly Place[] = [
     area: { x1: 635, y1: 55, x2: 1040, y2: 345 },
     left: 'shop',
     right: 'neighbour',
-    up: 'neighbour',
-    down: 'neighbour',
+    up: 'lab',
+    down: 'lab',
   },
   {
     key: 'center',
@@ -83,8 +83,8 @@ const PLACES: readonly Place[] = [
     area: { x1: 1175, y1: 160, x2: 1450, y2: 335 },
     left: 'gym',
     right: 'shop',
-    up: 'gym',
-    down: 'gym',
+    up: 'lab',
+    down: 'lab',
   },
 ]
 
