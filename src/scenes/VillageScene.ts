@@ -3,10 +3,12 @@ import Phaser from 'phaser'
 import { cryPath } from '../audio/sfx'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
 import { HOST_NPCS, hostGreeting, npcArtKey, npcCryKey, npcPortraitKey } from '../npc'
+import { ensureRaisingState, type RaisingState } from '../raising'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
 import { NpcTalk } from '../ui/npcTalk'
 import { addChoice, drawParchmentFrame } from '../ui/panel'
+import { ShopBox } from '../ui/shopBox'
 
 const TOWN_KEY = 'town'
 
@@ -94,6 +96,7 @@ const PLACES: readonly Place[] = [
  */
 export class VillageScene extends Phaser.Scene {
   private save!: SaveData
+  private state!: RaisingState
   private labels: Phaser.GameObjects.Text[] = []
   private frames: Phaser.GameObjects.Graphics[] = []
   private selected = 0
@@ -103,6 +106,8 @@ export class VillageScene extends Phaser.Scene {
   private notice?: Phaser.GameObjects.Text
   /** 건물 주인이 인사하는 동안 열려 있는 창 */
   private talk?: NpcTalk
+  /** 프렌들리숍 진열대 */
+  private shop?: ShopBox
 
   constructor() {
     super(SceneKey.Village)
@@ -110,7 +115,9 @@ export class VillageScene extends Phaser.Scene {
 
   init(data: SaveData): void {
     // 육아 상태를 그대로 들고 갔다가 돌아올 때 되돌려 줍니다.
+    // 마을에서 산 것도 여기에 얹히므로 씬을 나갈 때 함께 돌려줍니다.
     this.save = data
+    this.state = ensureRaisingState(data.raising)
   }
 
   preload(): void {
@@ -129,6 +136,7 @@ export class VillageScene extends Phaser.Scene {
     this.frames = []
     this.selected = 0
     this.talk = undefined
+    this.shop = undefined
 
     drawParchmentFrame(this)
     this.createTown()
@@ -220,6 +228,12 @@ export class VillageScene extends Phaser.Scene {
   }
 
   private move(direction: 'left' | 'right' | 'up' | 'down'): void {
+    if (this.shop) {
+      if (direction === 'up') this.shop.move(-1)
+      if (direction === 'down') this.shop.move(1)
+      return
+    }
+
     // 인사를 듣는 중에는 마을을 돌아다닐 수 없습니다.
     if (this.talk) return
 
@@ -234,6 +248,11 @@ export class VillageScene extends Phaser.Scene {
   }
 
   private submit(): void {
+    if (this.shop) {
+      this.shop.submit()
+      return
+    }
+
     if (this.talk) {
       this.talk.submit()
       return
@@ -243,6 +262,11 @@ export class VillageScene extends Phaser.Scene {
   }
 
   private cancel(): void {
+    if (this.shop) {
+      this.shop.cancel()
+      return
+    }
+
     if (this.talk) {
       this.talk.cancel()
       return
@@ -275,11 +299,34 @@ export class VillageScene extends Phaser.Scene {
       [greeting],
       () => {
         this.talk = undefined
-        this.showTownText(true)
+        this.openInside(place)
       },
       // 마을 그림을 가리지 않도록 작게, 오른쪽에 세웁니다.
       { artMaxHeight: 224, artX: GAME_WIDTH * 0.72 },
     )
+  }
+
+  /**
+   * 인사가 끝난 뒤 건물 안에서 할 일.
+   * 아직은 프렌들리숍에만 있고, 나머지는 마을로 되돌아옵니다.
+   */
+  private openInside(place: Place): void {
+    if (place.key !== 'shop') {
+      this.showTownText(true)
+      return
+    }
+
+    this.shop = new ShopBox(this, {
+      name: this.save.dittoName,
+      state: this.state,
+      onBuy: (state) => {
+        this.state = state
+      },
+      onCancel: () => {
+        this.shop = undefined
+        this.showTownText(true)
+      },
+    })
   }
 
   private showTownText(visible: boolean): void {
@@ -323,7 +370,7 @@ export class VillageScene extends Phaser.Scene {
   private leave(): void {
     this.cameras.main.fadeOut(250, 0, 0, 0)
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.start(SceneKey.Raising, this.save)
+      this.scene.start(SceneKey.Raising, { ...this.save, raising: this.state })
     })
   }
 }
