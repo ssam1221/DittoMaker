@@ -1,28 +1,42 @@
 import Phaser from 'phaser'
 
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH } from '../constants'
-import { BERRIES, buyBerry, canAfford, type Berry } from '../items'
+import { berryIconKey, BERRIES, buyBerry, canAfford, type Berry } from '../items'
 import type { RaisingState } from '../raising'
 
 /**
  * 프렌들리숍의 열매 진열대.
  *
- * 마을 그림 위에 덮어 놓고 고르게 합니다. 한 번 고를 때마다 한 알씩
- * 사서 그 자리에서 먹이므로, 돈이 닿는 한 계속 눌러도 됩니다.
+ * 옛 육성 시뮬레이션의 행상인 화면처럼, 한 칸이 곧 버튼 하나입니다.
+ * 칸 안에 아이콘·이름·값·효과가 함께 들어 있어 목록을 훑지 않고도
+ * 무엇을 사는지 한눈에 보입니다. 마지막 칸은 관둔다입니다.
  */
 
 const COLOR_IDLE = '#e8dfc4'
 const COLOR_SELECTED = '#ffd447'
-/** 살 돈이 모자란 줄은 흐리게 둡니다. */
+/** 살 돈이 모자란 칸은 흐리게 둡니다. */
 const COLOR_POOR = '#8d8471'
+const COLOR_DETAIL = '#b7aecd'
 
-const BOX = { x: 232, y: 46, width: 496, height: 448 }
-const ROW_TOP = BOX.y + 92
-const ROW_GAP = 34
+const BOX = { x: 128, y: 42, width: 704, height: 470 }
 
-const COL_NAME = BOX.x + 36
-const COL_EFFECT = BOX.x + 186
-const COL_PRICE = BOX.x + BOX.width - 36
+const COLUMNS = 2
+const CELL = { width: 320, height: 66, gapX: 16, gapY: 10 }
+const GRID_LEFT = BOX.x + (BOX.width - (CELL.width * COLUMNS + CELL.gapX * (COLUMNS - 1))) / 2
+const GRID_TOP = BOX.y + 84
+
+const ICON = 46
+const ROWS = Math.ceil(BERRIES.length / COLUMNS)
+
+/** 격자가 끝나는 자리. 아래에 한마디와 관둔다 칸이 차례로 놓입니다. */
+const GRID_BOTTOM = GRID_TOP + ROWS * CELL.height + (ROWS - 1) * CELL.gapY
+const MESSAGE_Y = GRID_BOTTOM + 20
+
+/** 관둔다 칸 — 격자 아래에 한 줄로 놓습니다. */
+const QUIT = BERRIES.length
+const QUIT_WIDTH = 168
+const QUIT_HEIGHT = 36
+const QUIT_Y = MESSAGE_Y + 22
 
 export interface ShopBoxOptions {
   /** 메타몽의 이름. 먹였을 때의 말에 씁니다. */
@@ -33,14 +47,23 @@ export interface ShopBoxOptions {
   onCancel: () => void
 }
 
+/** 칸 하나를 이루는 것들 */
+interface Cell {
+  frame: Phaser.GameObjects.Graphics
+  texts: Phaser.GameObjects.Text[]
+  icon?: Phaser.GameObjects.Image
+  bounds: { x: number; y: number; width: number; height: number }
+}
+
 export class ShopBox {
   private readonly container: Phaser.GameObjects.Container
-  private readonly rows: Phaser.GameObjects.Text[][] = []
-  private readonly markers: Phaser.GameObjects.Text[] = []
+  private readonly cells: Cell[] = []
   private readonly moneyText: Phaser.GameObjects.Text
   private readonly message: Phaser.GameObjects.Text
 
   private index = 0
+  /** 관둔다에서 격자로 돌아올 때 쓰는 마지막 칸 */
+  private lastColumn = 0
   private state: RaisingState
 
   constructor(
@@ -70,38 +93,39 @@ export class ShopBox {
     box.lineStyle(1, 0xd8bd76, 0.85)
     box.strokeRect(BOX.x + 5, BOX.y + 5, BOX.width - 10, BOX.height - 10)
     box.lineStyle(1, 0xb08d3f, 0.6)
-    box.lineBetween(BOX.x + 24, BOX.y + 74, BOX.x + BOX.width - 24, BOX.y + 74)
+    box.lineBetween(BOX.x + 24, BOX.y + 66, BOX.x + BOX.width - 24, BOX.y + 66)
 
     const title = scene.add
-      .text(COL_NAME, BOX.y + 26, '프렌들리숍', {
+      .text(BOX.x + 32, BOX.y + 22, '프렌들리숍', {
         fontFamily: FontFamily.Body,
         fontSize: '22px',
         color: '#f6efdc',
       })
       .setOrigin(0, 0)
 
-    this.moneyText = scene.add
-      .text(COL_PRICE, BOX.y + 30, '', {
-        fontFamily: FontFamily.Body,
-        fontSize: '19px',
-        color: '#ffd447',
-      })
-      .setOrigin(1, 0)
-
     const subtitle = scene.add
-      .text(COL_NAME, BOX.y + 52, '고르면 그 자리에서 한 알 먹입니다.', {
+      .text(BOX.x + 152, BOX.y + 28, '고르면 그 자리에서 한 알 먹입니다.', {
         fontFamily: FontFamily.Body,
         fontSize: '14px',
-        color: '#b7aecd',
+        color: COLOR_DETAIL,
       })
       .setOrigin(0, 0)
 
-    this.container.add([shade, box, title, this.moneyText, subtitle])
+    this.moneyText = scene.add
+      .text(BOX.x + BOX.width - 32, BOX.y + 24, '', {
+        fontFamily: FontFamily.Body,
+        fontSize: '20px',
+        color: COLOR_SELECTED,
+      })
+      .setOrigin(1, 0)
 
-    BERRIES.forEach((berry, i) => this.addRow(berry, i))
+    this.container.add([shade, box, title, subtitle, this.moneyText])
+
+    BERRIES.forEach((berry, i) => this.addBerryCell(berry, i))
+    this.addQuitCell()
 
     this.message = scene.add
-      .text(BOX.x + BOX.width / 2, BOX.y + BOX.height - 54, '', {
+      .text(BOX.x + BOX.width / 2, MESSAGE_Y, '', {
         fontFamily: FontFamily.Body,
         fontSize: '16px',
         color: '#cfe6b0',
@@ -110,70 +134,116 @@ export class ShopBox {
       })
       .setOrigin(0.5, 0.5)
 
-    const hint = scene.add
-      .text(BOX.x + BOX.width / 2, BOX.y + BOX.height - 24, 'Enter 사기    Esc 나가기', {
-        fontFamily: FontFamily.Body,
-        fontSize: '14px',
-        color: '#b7aecd',
-      })
-      .setOrigin(0.5, 0.5)
-
-    this.container.add([this.message, hint])
+    this.container.add(this.message)
     this.refresh()
   }
 
-  private addRow(berry: Berry, i: number): void {
-    const y = ROW_TOP + i * ROW_GAP
+  /** 아이콘·이름·값·효과가 한 칸에 들어간 버튼 */
+  private addBerryCell(berry: Berry, i: number): void {
+    const x = GRID_LEFT + (i % COLUMNS) * (CELL.width + CELL.gapX)
+    const y = GRID_TOP + Math.floor(i / COLUMNS) * (CELL.height + CELL.gapY)
+    const bounds = { x, y, width: CELL.width, height: CELL.height }
 
-    const marker = this.scene.add
-      .text(COL_NAME - 18, y, '▶', {
-        fontFamily: FontFamily.Body,
-        fontSize: '13px',
-        color: COLOR_SELECTED,
-      })
-      .setOrigin(0.5, 0.5)
-    this.markers.push(marker)
+    const frame = this.scene.add.graphics()
 
-    const name = this.text(COL_NAME, y, berry.name, '18px', 0)
-    const effect = this.text(COL_EFFECT, y, berry.effect, '16px', 0)
-    const price = this.text(COL_PRICE, y, `₽ ${berry.price.toLocaleString()}`, '16px', 1)
-    this.rows.push([name, effect, price])
+    const textLeft = x + 14 + ICON + 14
+    const name = this.label(textLeft, y + 15, berry.name, '18px', 0)
+    const price = this.label(
+      x + CELL.width - 14,
+      y + 17,
+      `₽ ${berry.price.toLocaleString()}`,
+      '16px',
+      1,
+    )
+    const effect = this.label(textLeft, y + 42, berry.effect, '15px', 0)
 
-    // 글자마다 판정을 걸면 사이 틈이 죽으므로 줄 전체를 덮는 판을 둡니다.
-    const hit = this.scene.add
-      .zone(BOX.x + 16, y - ROW_GAP / 2, BOX.width - 32, ROW_GAP)
-      .setOrigin(0, 0)
-      .setInteractive({ useHandCursor: true })
-    hit.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => {
-      this.index = i
-      this.refresh()
-    })
-    hit.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
-      this.index = i
-      this.buy()
-    })
+    const icon = this.scene.add.image(
+      x + 14 + ICON / 2,
+      y + CELL.height / 2,
+      berryIconKey(berry.key),
+    )
+    icon.setDisplaySize(ICON, ICON)
 
-    this.container.add([marker, name, effect, price, hit])
+    this.cells.push({ frame, texts: [name, price, effect], icon, bounds })
+    this.container.add([frame, icon, name, price, effect])
+    this.makeClickable(bounds, i)
   }
 
-  private text(
+  private addQuitCell(): void {
+    const x = BOX.x + (BOX.width - QUIT_WIDTH) / 2
+    const bounds = { x, y: QUIT_Y, width: QUIT_WIDTH, height: QUIT_HEIGHT }
+
+    const frame = this.scene.add.graphics()
+    const label = this.label(x + QUIT_WIDTH / 2, QUIT_Y + QUIT_HEIGHT / 2, '관둔다', '18px', 0.5, 0.5)
+
+    this.cells.push({ frame, texts: [label], bounds })
+    this.container.add([frame, label])
+    this.makeClickable(bounds, QUIT)
+  }
+
+  private makeClickable(
+    bounds: { x: number; y: number; width: number; height: number },
+    index: number,
+  ): void {
+    const zone = this.scene.add
+      .zone(bounds.x, bounds.y, bounds.width, bounds.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true })
+
+    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OVER, () => {
+      this.index = index
+      if (index !== QUIT) this.lastColumn = index % COLUMNS
+      this.refresh()
+    })
+    zone.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
+      this.index = index
+      this.submit()
+    })
+
+    this.container.add(zone)
+  }
+
+  private label(
     x: number,
     y: number,
     value: string,
     fontSize: string,
     originX: number,
+    originY = 0,
   ): Phaser.GameObjects.Text {
     return this.scene.add
       .text(x, y, value, { fontFamily: FontFamily.Body, fontSize, color: COLOR_IDLE })
-      .setOrigin(originX, 0.5)
+      .setOrigin(originX, originY)
   }
 
-  move(delta: number): void {
-    this.index = (this.index + delta + BERRIES.length) % BERRIES.length
+  /** 좌우는 칸을, 위아래는 줄을 옮깁니다. */
+  move(delta: number, axis: 'x' | 'y'): void {
+    if (axis === 'x') {
+      // 관둔다는 한 줄을 혼자 쓰므로 좌우로 갈 곳이 없습니다.
+      if (this.index === QUIT) return
+
+      const row = Math.floor(this.index / COLUMNS)
+      this.lastColumn = (this.lastColumn + delta + COLUMNS) % COLUMNS
+      this.index = Math.min(row * COLUMNS + this.lastColumn, BERRIES.length - 1)
+      this.refresh()
+      return
+    }
+
+    // 격자 아래에 관둔다가 한 줄 더 있다고 보고 셉니다.
+    const row = this.index === QUIT ? ROWS : Math.floor(this.index / COLUMNS)
+    const next = (row + delta + ROWS + 1) % (ROWS + 1)
+
+    this.index =
+      next === ROWS ? QUIT : Math.min(next * COLUMNS + this.lastColumn, BERRIES.length - 1)
     this.refresh()
   }
 
   submit(): void {
+    if (this.index === QUIT) {
+      this.cancel()
+      return
+    }
+
     this.buy()
   }
 
@@ -210,12 +280,29 @@ export class ShopBox {
   private refresh(): void {
     this.moneyText.setText(`₽ ${this.state.money.toLocaleString()}`)
 
-    BERRIES.forEach((berry, i) => {
+    this.cells.forEach((cell, i) => {
       const chosen = i === this.index
-      const color = chosen ? COLOR_SELECTED : canAfford(this.state, berry) ? COLOR_IDLE : COLOR_POOR
+      const berry = BERRIES[i]
+      const poor = berry ? !canAfford(this.state, berry) : false
 
-      this.markers[i]?.setVisible(chosen)
-      this.rows[i]?.forEach((part) => part.setColor(color))
+      this.paint(cell, chosen, poor)
+
+      const color = chosen ? COLOR_SELECTED : poor ? COLOR_POOR : COLOR_IDLE
+      cell.texts.forEach((text, n) => {
+        // 효과 줄은 고르지 않았을 때 한 단계 죽여 이름이 먼저 읽히게 합니다.
+        text.setColor(chosen || poor ? color : n === 2 ? COLOR_DETAIL : color)
+      })
+      cell.icon?.setAlpha(poor && !chosen ? 0.45 : 1)
     })
+  }
+
+  private paint(cell: Cell, chosen: boolean, poor: boolean): void {
+    const { x, y, width, height } = cell.bounds
+
+    cell.frame.clear()
+    cell.frame.fillStyle(chosen ? 0x3b3266 : 0x2e2851, poor && !chosen ? 0.6 : 1)
+    cell.frame.fillRect(x, y, width, height)
+    cell.frame.lineStyle(chosen ? 2 : 1, chosen ? 0xffd447 : 0x6b5ea8, 1)
+    cell.frame.strokeRect(x, y, width, height)
   }
 }

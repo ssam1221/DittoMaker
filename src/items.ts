@@ -132,3 +132,6 @@ export function buyBerry(state: RaisingState, berry: Berry, name: string): Purch
     message: `${withJosa(name, '이', '가')} ${withJosa(berry.name, '을', '를')} 먹었다. ${afterTaste(berry)}`,
   }
 }
+
+/** 상점 칸에 놓는 아이콘의 텍스처 키 */
+export const berryIconKey = (key: string): string => `berry-${key}`

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 
 import { cryPath } from '../audio/sfx'
 import { FontFamily, GAME_HEIGHT, GAME_WIDTH, SceneKey } from '../constants'
+import { berryIconKey, BERRIES } from '../items'
 import { HOST_NPCS, hostGreeting, npcArtKey, npcCryKey, npcPortraitKey } from '../npc'
 import { ensureRaisingState, type RaisingState } from '../raising'
 import type { SaveData } from '../save'
@@ -129,6 +130,11 @@ export class VillageScene extends Phaser.Scene {
       this.load.image(npcPortraitKey(npc.key), `assets/pokemon/portrait/npc/${npc.key}.png`)
       this.load.audio(npcCryKey(npc.key), cryPath(npc.cry))
     }
+
+    // 프렌들리숍 진열대에 놓을 열매 아이콘
+    for (const berry of BERRIES) {
+      this.load.image(berryIconKey(berry.key), `assets/items/${berry.key}.png`)
+    }
   }
 
   create(): void {
@@ -229,8 +235,10 @@ export class VillageScene extends Phaser.Scene {
 
   private move(direction: 'left' | 'right' | 'up' | 'down'): void {
     if (this.shop) {
-      if (direction === 'up') this.shop.move(-1)
-      if (direction === 'down') this.shop.move(1)
+      if (direction === 'left') this.shop.move(-1, 'x')
+      if (direction === 'right') this.shop.move(1, 'x')
+      if (direction === 'up') this.shop.move(-1, 'y')
+      if (direction === 'down') this.shop.move(1, 'y')
       return
     }
 

@@ -11,7 +11,8 @@
     "fetch:pokemon": "node scripts/fetch-pokemon.mjs",
     "make:portraits": "node scripts/make-portraits.mjs",
     "make:npc-portraits": "node scripts/make-npc-portraits.mjs",
-    "fetch:cries": "node scripts/fetch-cries.mjs"
+    "fetch:cries": "node scripts/fetch-cries.mjs",
+    "fetch:berries": "node scripts/fetch-berries.mjs"
   },
   "dependencies": {
     "phaser": "^4.2.1"
