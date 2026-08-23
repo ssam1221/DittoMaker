@@ -35,7 +35,7 @@ const FACES = {
   build: { cx: 0.24, cy: 0.645, size: 0.31 },
   cook: { cx: 0.57, cy: 0.335, size: 0.58 },
   music: { cx: 0.55, cy: 0.57, size: 0.36 },
-  nurse: { cx: 0.477, cy: 0.22, size: 0.46 },
+  nurse: { cx: 0.43, cy: 0.2, size: 0.5 },
   oldstory: { cx: 0.545, cy: 0.35, size: 0.45 },
   prof: { cx: 0.5125, cy: 0.4875, size: 0.55 },
 }
