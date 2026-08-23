@@ -8,10 +8,11 @@ import { withJosa } from './ui/hangul'
  * 아직 쓸 곳이 상점밖에 없어 넣어 두었다 꺼내는 손이 늘기만 하기
  * 때문입니다. 나중에 모험이 생기면 그때 가방을 붙이면 됩니다.
  *
- * 능력치를 올리는 여섯 개는 본가에서 노력치를 덜어 주는 열매들이라
- * 저마다 능력치 하나와 짝이 맞습니다. 한 알에 3 씩 오르는데,
- * 수업 한 칸이 4 쯤 올리는 것을 생각하면 시간을 돈으로 조금
- * 사는 셈입니다.
+ * 무엇이 오르는지는 본가에서 그 열매가 하는 일을 그대로 따랐습니다.
+ * 오랭열매는 체력을 채워 주니 체력이 오르고, 리리바·우무·마루비·
+ * 아파코·미캉은 궁지에 몰렸을 때 저마다 한 가지 능력을 끌어올리는
+ * 열매라 그 능력이 오릅니다. 한 알에 3 씩인데, 수업 한 칸이 4 쯤
+ * 올리는 것을 생각하면 시간을 돈으로 조금 사는 셈입니다.
  */
 
 export interface Berry {
@@ -28,53 +29,53 @@ export interface Berry {
 
 export const BERRIES: readonly Berry[] = [
   {
-    key: 'pomeg',
-    name: '석류열매',
+    key: 'oran',
+    name: '오랭열매',
     price: 320,
     effect: '체력 +3',
     stat: { key: 'hp', amount: 3 },
   },
   {
-    key: 'kelpsy',
-    name: '자두열매',
+    key: 'liechi',
+    name: '리리바열매',
     price: 320,
     effect: '공격 +3',
     stat: { key: 'attack', amount: 3 },
   },
   {
-    key: 'qualot',
-    name: '크랜열매',
+    key: 'ganlon',
+    name: '우무열매',
     price: 320,
     effect: '방어 +3',
     stat: { key: 'defense', amount: 3 },
   },
   {
-    key: 'hondew',
-    name: '팥콩열매',
+    key: 'petaya',
+    name: '마루비열매',
     price: 320,
     effect: '특수공격 +3',
     stat: { key: 'special', amount: 3 },
   },
   {
-    key: 'grepa',
-    name: '유자열매',
+    key: 'apicot',
+    name: '아파코열매',
     price: 320,
     effect: '특수방어 +3',
     stat: { key: 'specialDefense', amount: 3 },
   },
   {
-    key: 'tamato',
-    name: '파야파열매',
+    key: 'salac',
+    name: '미캉열매',
     price: 320,
     effect: '스피드 +3',
     stat: { key: 'speed', amount: 3 },
   },
   {
-    key: 'oran',
-    name: '오랭열매',
-    price: 180,
-    effect: '컨디션 +15',
-    condition: 15,
+    key: 'sitrus',
+    name: '리샘열매',
+    price: 260,
+    effect: '컨디션 +20',
+    condition: 20,
   },
   {
     key: 'lum',

@@ -7,6 +7,7 @@ import { HOST_NPCS, hostGreeting, npcArtKey, npcCryKey, npcPortraitKey } from '.
 import { ensureRaisingState, type RaisingState } from '../raising'
 import type { SaveData } from '../save'
 import { withJosa } from '../ui/hangul'
+import { CentreBox } from '../ui/centreBox'
 import { NpcTalk } from '../ui/npcTalk'
 import { addChoice, drawParchmentFrame } from '../ui/panel'
 import { ShopBox } from '../ui/shopBox'
@@ -109,6 +110,8 @@ export class VillageScene extends Phaser.Scene {
   private talk?: NpcTalk
   /** 프렌들리숍 진열대 */
   private shop?: ShopBox
+  /** 포켓몬센터 접수대 */
+  private centre?: CentreBox
 
   constructor() {
     super(SceneKey.Village)
@@ -143,6 +146,7 @@ export class VillageScene extends Phaser.Scene {
     this.selected = 0
     this.talk = undefined
     this.shop = undefined
+    this.centre = undefined
 
     drawParchmentFrame(this)
     this.createTown()
@@ -242,6 +246,11 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (this.centre) {
+      this.centre.move(direction === 'left' || direction === 'up' ? -1 : 1)
+      return
+    }
+
     // 인사를 듣는 중에는 마을을 돌아다닐 수 없습니다.
     if (this.talk) return
 
@@ -261,6 +270,11 @@ export class VillageScene extends Phaser.Scene {
       return
     }
 
+    if (this.centre) {
+      this.centre.submit()
+      return
+    }
+
     if (this.talk) {
       this.talk.submit()
       return
@@ -272,6 +286,11 @@ export class VillageScene extends Phaser.Scene {
   private cancel(): void {
     if (this.shop) {
       this.shop.cancel()
+      return
+    }
+
+    if (this.centre) {
+      this.centre.cancel()
       return
     }
 
@@ -316,25 +335,40 @@ export class VillageScene extends Phaser.Scene {
 
   /**
    * 인사가 끝난 뒤 건물 안에서 할 일.
-   * 아직은 프렌들리숍에만 있고, 나머지는 마을로 되돌아옵니다.
+   * 프렌들리숍과 포켓몬센터에만 있고, 나머지는 마을로 되돌아옵니다.
    */
   private openInside(place: Place): void {
-    if (place.key !== 'shop') {
-      this.showTownText(true)
+    if (place.key === 'shop') {
+      this.shop = new ShopBox(this, {
+        name: this.save.dittoName,
+        state: this.state,
+        onBuy: (state) => {
+          this.state = state
+        },
+        onCancel: () => {
+          this.shop = undefined
+          this.showTownText(true)
+        },
+      })
       return
     }
 
-    this.shop = new ShopBox(this, {
-      name: this.save.dittoName,
-      state: this.state,
-      onBuy: (state) => {
-        this.state = state
-      },
-      onCancel: () => {
-        this.shop = undefined
-        this.showTownText(true)
-      },
-    })
+    if (place.key === 'center') {
+      this.centre = new CentreBox(this, {
+        name: this.save.dittoName,
+        state: this.state,
+        onRest: (state) => {
+          this.state = state
+        },
+        onClose: () => {
+          this.centre = undefined
+          this.showTownText(true)
+        },
+      })
+      return
+    }
+
+    this.showTownText(true)
   }
 
   private showTownText(visible: boolean): void {

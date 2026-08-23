@@ -451,6 +451,7 @@ export function runMonth(start: RaisingState, slots: readonly DaySlot[]): MonthR
           state: {
             period,
             plan: [],
+            centreMonth: start.centreMonth,
             money,
             stats: { ...stats },
             types: { ...types },
@@ -506,6 +507,7 @@ export function runMonth(start: RaisingState, slots: readonly DaySlot[]): MonthR
         state: {
           period,
           plan: [],
+          centreMonth: start.centreMonth,
           money,
           stats: { ...stats },
           types: { ...types },
@@ -523,6 +525,7 @@ export function runMonth(start: RaisingState, slots: readonly DaySlot[]): MonthR
     state: {
       period,
       plan: [],
+      centreMonth: start.centreMonth,
       money,
       stats,
       types,

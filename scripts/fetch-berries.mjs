@@ -21,13 +21,13 @@ const BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/i
 
 /** 게임에서 쓰는 이름 → 원본 파일 이름 */
 const BERRIES = {
-  pomeg: 'pomeg-berry',
-  kelpsy: 'kelpsy-berry',
-  qualot: 'qualot-berry',
-  hondew: 'hondew-berry',
-  grepa: 'grepa-berry',
-  tamato: 'tamato-berry',
   oran: 'oran-berry',
+  liechi: 'liechi-berry',
+  ganlon: 'ganlon-berry',
+  petaya: 'petaya-berry',
+  apicot: 'apicot-berry',
+  salac: 'salac-berry',
+  sitrus: 'sitrus-berry',
   lum: 'lum-berry',
 }
 

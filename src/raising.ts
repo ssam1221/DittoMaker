@@ -87,6 +87,11 @@ export interface RaisingState {
   condition: number
   /** 0~100. 쌓이면 컨디션을 갉아먹습니다. */
   stress: number
+  /**
+   * 포켓몬센터에서 마지막으로 쉬어 간 달. 한 달에 한 번만 받을 수
+   * 있으므로 그 달을 적어 둡니다. -1 이면 아직 간 적이 없습니다.
+   */
+  centreMonth: number
 }
 
 /**
@@ -126,6 +131,7 @@ export function createRaisingState(): RaisingState {
     types: { ...makeAffinity(0), normal: 20 },
     condition: 80,
     stress: 0,
+    centreMonth: -1,
   }
 }
 
@@ -143,6 +149,7 @@ export function ensureRaisingState(state: RaisingState | undefined): RaisingStat
     ...base,
     ...state,
     period: state.period ?? legacy ?? 0,
+    centreMonth: state.centreMonth ?? -1,
     plan: state.plan ?? [],
     stats: { ...base.stats, ...state.stats },
     // 타입이 나중에 늘어나도 빠진 칸이 생기지 않게 합칩니다.
@@ -229,5 +236,38 @@ export function rest(state: RaisingState): RaisingState {
     // 스트레스가 남아 있으면 회복이 덜 됩니다.
     condition: clamp(state.condition + 20 - Math.floor(stress / 5), 0, 100),
     stats: { ...state.stats, bond: clamp(state.stats.bond + 1, 0, STAT_MAX) },
+  }
+}
+
+/**
+ * 시작부터 지난 달 수. 포켓몬센터를 한 달에 한 번으로 묶는 데 씁니다.
+ */
+export function monthIndex(period: number): number {
+  return Math.floor(period / PERIODS_PER_MONTH)
+}
+
+/**
+ * 포켓몬센터에서 쉬어 가는 값.
+ *
+ * 지금 쌓인 스트레스의 스물다섯 배입니다. 지쳐 있을수록 손이 많이
+ * 가니 비싸고, 멀쩡할 때 들르면 받을 것도 낼 것도 없습니다.
+ */
+export function centreCost(state: RaisingState): number {
+  return state.stress * 25
+}
+
+/** 이번 달에 아직 안 갔는지 */
+export function centreOpen(state: RaisingState): boolean {
+  return state.centreMonth !== monthIndex(state.period)
+}
+
+/** 스트레스를 절반으로 덜고 값을 치릅니다. */
+export function centreRest(state: RaisingState): RaisingState {
+  return {
+    ...state,
+    money: state.money - centreCost(state),
+    // 반올림하면 1 이 남아 다음 달에 또 오게 되므로 버립니다.
+    stress: Math.floor(state.stress / 2),
+    centreMonth: monthIndex(state.period),
   }
 }
