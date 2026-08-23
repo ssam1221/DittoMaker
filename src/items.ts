@@ -13,6 +13,11 @@ import { withJosa } from './ui/hangul'
  * 아파코·미캉은 궁지에 몰렸을 때 저마다 한 가지 능력을 끌어올리는
  * 열매라 그 능력이 오릅니다. 한 알에 3 씩인데, 수업 한 칸이 4 쯤
  * 올리는 것을 생각하면 시간을 돈으로 조금 사는 셈입니다.
+ *
+ * 스타열매는 본가에서도 무엇이 오를지 모르는 열매라 여기서도 그렇게
+ * 두었습니다. 값은 비싸지만 한 번에 크게 오릅니다.
+ *
+ * 스트레스를 더는 일은 포켓몬센터가 맡으므로 여기서는 팔지 않습니다.
  */
 
 export interface Berry {
@@ -23,8 +28,9 @@ export interface Berry {
   effect: string
   /** 먹였을 때 오르는 능력치 */
   stat?: { key: keyof Stats; amount: number }
+  /** 어느 능력치가 오를지는 먹어 봐야 압니다. */
+  randomStat?: number
   condition?: number
-  stress?: number
 }
 
 export const BERRIES: readonly Berry[] = [
@@ -78,25 +84,33 @@ export const BERRIES: readonly Berry[] = [
     condition: 20,
   },
   {
-    key: 'lum',
-    name: '자뭉열매',
-    price: 180,
-    effect: '스트레스 -20',
-    stress: -20,
+    key: 'starf',
+    name: '스타열매',
+    price: 900,
+    effect: '능력치 하나 +8 (무작위)',
+    randomStat: 8,
   },
 ]
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value))
 
+/** 오른 능력치와 그 폭 */
+type Gain = { key: keyof Stats; amount: number }
+
+/** 스타열매처럼 무엇이 오를지 정해지지 않은 열매를 위해 하나를 고릅니다. */
+function pickStat(): keyof Stats {
+  const chosen = STAT_LABELS[Math.floor(Math.random() * STAT_LABELS.length)]
+  return chosen?.key ?? 'hp'
+}
+
 /** 먹고 난 뒤의 한마디 */
-function afterTaste(berry: Berry): string {
-  if (berry.stat) {
-    const label = STAT_LABELS.find((s) => s.key === berry.stat!.key)?.label ?? '능력'
-    return `${withJosa(label, '이', '가')} ${berry.stat.amount} 올랐다!`
+function afterTaste(berry: Berry, gained: Gain | undefined): string {
+  if (gained) {
+    const label = STAT_LABELS.find((s) => s.key === gained.key)?.label ?? '능력'
+    return `${withJosa(label, '이', '가')} ${gained.amount} 올랐다!`
   }
   if (berry.condition) return '몸이 한결 가벼워졌다.'
-  if (berry.stress) return '마음이 조금 놓인 듯하다.'
   return '맛있게 먹었다.'
 }
 
@@ -116,9 +130,12 @@ export function canAfford(state: RaisingState, berry: Berry): boolean {
  * 사 준 것을 알아보기 때문에 어느 열매든 친밀도가 조금 오릅니다.
  */
 export function buyBerry(state: RaisingState, berry: Berry, name: string): PurchaseResult {
+  const gained: Gain | undefined =
+    berry.stat ?? (berry.randomStat ? { key: pickStat(), amount: berry.randomStat } : undefined)
+
   const stats = { ...state.stats }
-  if (berry.stat) {
-    stats[berry.stat.key] = clamp(stats[berry.stat.key] + berry.stat.amount, 0, STAT_MAX)
+  if (gained) {
+    stats[gained.key] = clamp(stats[gained.key] + gained.amount, 0, STAT_MAX)
   }
   stats.bond = clamp(stats.bond + 1, 0, STAT_MAX)
 
@@ -128,9 +145,8 @@ export function buyBerry(state: RaisingState, berry: Berry, name: string): Purch
       money: state.money - berry.price,
       stats,
       condition: clamp(state.condition + (berry.condition ?? 0), 0, 100),
-      stress: clamp(state.stress + (berry.stress ?? 0), 0, 100),
     },
-    message: `${withJosa(name, '이', '가')} ${withJosa(berry.name, '을', '를')} 먹었다. ${afterTaste(berry)}`,
+    message: `${withJosa(name, '이', '가')} ${withJosa(berry.name, '을', '를')} 먹었다. ${afterTaste(berry, gained)}`,
   }
 }
 

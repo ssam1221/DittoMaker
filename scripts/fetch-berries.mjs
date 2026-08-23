@@ -28,7 +28,7 @@ const BERRIES = {
   apicot: 'apicot-berry',
   salac: 'salac-berry',
   sitrus: 'sitrus-berry',
-  lum: 'lum-berry',
+  starf: 'starf-berry',
 }
 
 const SCALE = 4
