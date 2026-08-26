@@ -30,6 +30,17 @@ export const NPCS = {
   prof: { key: 'prof', name: '덩쿠림보', role: '약학 선생', cry: '0465-덩쿠림보' },
   nurse: { key: 'nurse', name: '럭키', role: '포켓몬센터 접수', cry: '0113-럭키' },
   clerk: { key: 'clerk', name: '나옹', role: '프렌들리숍 점원', cry: '0052-나옹' },
+  garden: { key: 'venusaur', name: '이상해꽃', role: '재배 선생', cry: '0003-이상해꽃' },
+  letters: { key: 'hypno', name: '슬리퍼', role: '문학 선생', cry: '0097-슬리퍼' },
+  swim: { key: 'lapras', name: '라프라스', role: '수영 선생', cry: '0131-라프라스' },
+  fight: { key: 'machamp', name: '괴력몬', role: '격투술 선생', cry: '0068-괴력몬' },
+  smith: { key: 'magmar', name: '마그마', role: '대장일 선생', cry: '0126-마그마' },
+  bug: { key: 'butterfree', name: '버터플', role: '곤충채집 선생', cry: '0012-버터플' },
+  machine: { key: 'magneton', name: '레어코일', role: '기계학 선생', cry: '0082-레어코일' },
+  librarian: { key: 'slowbro', name: '야도란', role: '도서관 사서', cry: '0080-야도란' },
+  farmer: { key: 'farfetchd', name: '파오리', role: '농장 주인', cry: '0083-파오리' },
+  rancher: { key: 'rhydon', name: '코뿌리', role: '목장 반장', cry: '0112-코뿌리' },
+  fishmonger: { key: 'kingler', name: '킹크랩', role: '어시장 상인', cry: '0099-킹크랩' },
   oldstory: { key: 'oldstory', name: '잠만보', role: '이야기꾼', cry: '0143-잠만보' },
   build: { key: 'build', name: '두드리짱', role: '현장 반장', cry: '0959-두드리짱' },
 } as const satisfies Record<string, Npc>
@@ -64,6 +75,30 @@ const BY_ACTIVITY: Readonly<Record<string, Assignment>> = {
       '수고했어요. 손 씻고 가는 거 잊지 말고요!',
     ],
   },
+  gardening: {
+    npc: 'garden',
+    lines: [
+      '흙부터 만져 보렴. 좋은 흙은 손에 붙는 느낌이 다르단다.',
+      '오늘은 물 주는 날이야. 뿌리가 목마르지 않게만 하면 된단다.',
+      '씨앗은 서두르는 법이 없지. 우리도 그러자꾸나.',
+    ],
+    farewells: [
+      '수고했다. 내일도 잊지 말고 물을 주렴.',
+      '오늘 심은 건 네 것이야. 다음에 와서 봐 주려무나.',
+    ],
+  },
+  literature: {
+    npc: 'letters',
+    lines: [
+      '오늘은 이 시를 읽어 보자. 뜻은 몰라도 소리부터 들어 보렴.',
+      '좋은 이야기는 두 번 읽어야 보인단다. 서두르지 말거라.',
+      '글자를 눈으로만 좇지 말고, 그 뒤의 그림을 그려 보려무나.',
+    ],
+    farewells: [
+      '오늘 읽은 건 여기까지. 나머지는 꿈에서 이어 보렴.',
+      '수고했다. 책은 제자리에 꽂아 두고 가려무나.',
+    ],
+  },
   art: {
     npc: 'art',
     lines: [
@@ -88,6 +123,42 @@ const BY_ACTIVITY: Readonly<Record<string, Assignment>> = {
       '수고했어요. 그 박자, 잊지 말고요!',
     ],
   },
+  swimming: {
+    npc: 'swim',
+    lines: [
+      '물은 밀어내는 게 아니라 타고 가는 거예요. 힘을 빼요.',
+      '오늘 물이 좀 차요. 준비운동부터 하고 들어와요.',
+      '숨은 물 밖에서만 쉬는 게 아니에요. 박자를 익혀 봐요.',
+    ],
+    farewells: [
+      '오늘은 여기까지! 몸 잘 말리고 가요.',
+      '수고했어요. 물에서 나오면 금방 추워지니 서둘러요.',
+    ],
+  },
+  martial: {
+    npc: 'fight',
+    lines: [
+      '자세부터다. 발이 흔들리면 팔은 아무 소용 없다.',
+      '무거운 걸 드는 게 힘이 아니야. 버티는 게 힘이지.',
+      '오늘은 돌을 하나 깨 보자. 겁먹지 말고.',
+    ],
+    farewells: [
+      '오늘 몫은 다 했다. 근육은 쉴 때 붙는다, 푹 자둬라.',
+      '수고했다. 내일은 하나 더 들어 보자고.',
+    ],
+  },
+  smithing: {
+    npc: 'smith',
+    lines: [
+      '쇠는 달았을 때 두드리는 거다. 때를 놓치면 아무리 쳐도 안 돼.',
+      '불꽃 색을 봐라. 그 색이 곧 온도다.',
+      '앞치마 단단히 매고. 튀는 건 봐주지 않는다.',
+    ],
+    farewells: [
+      '오늘 만든 건 식혀 두마. 내일 다듬자.',
+      '수고했다. 화로는 내가 끄고 갈 테니 먼저 가라.',
+    ],
+  },
   pharmacy: {
     npc: 'prof',
     lines: [
@@ -98,6 +169,30 @@ const BY_ACTIVITY: Readonly<Record<string, Assignment>> = {
     farewells: [
       '수고했다. 오늘 배운 건 잊지 말거라.',
       '다음에 또 오렴. 그때는 다른 풀을 보자꾸나.',
+    ],
+  },
+  insects: {
+    npc: 'bug',
+    lines: [
+      '풀숲은 살살 헤쳐야 해요. 놀라면 다 달아나 버리거든요.',
+      '오늘은 하늘 쪽을 봐요. 이맘때는 위로 많이 다녀요.',
+      '잡았으면 이름부터 적어 둬요. 그래야 다음에 또 만나죠.',
+    ],
+    farewells: [
+      '오늘 본 건 다 놓아 주고 가요. 그게 약속이에요.',
+      '수고했어요! 다음엔 더 깊은 숲으로 가 봐요.',
+    ],
+  },
+  machines: {
+    npc: 'machine',
+    lines: [
+      '전선은 색으로 외우는 거다. 붉은 쪽이 먼저.',
+      '분해는 누구나 한다. 다시 맞추는 게 일이지.',
+      '손대기 전에 전원부터. …그거 하나만 지켜라.',
+    ],
+    farewells: [
+      '오늘 것은 잘 돌아간다. 수고했다.',
+      '부품은 상자에 넣어 두마. 다음에 이어서 하자.',
     ],
   },
   folklore: {
@@ -123,6 +218,50 @@ const BY_ACTIVITY: Readonly<Record<string, Assignment>> = {
     farewells: [
       '오늘 고생했어요! 남은 건 싸 줄게요.',
       '수고했어요. 내일도 이만큼만 부탁해요!',
+    ],
+  },
+  library: {
+    npc: 'librarian',
+    lines: [
+      '…아, 왔구나. 저쪽 서가부터 부탁하마. 천천히 해도 된다.',
+      '여기선 뛰지 않는 게 규칙이야. 어차피 나도 못 뛰지만.',
+    ],
+    farewells: [
+      '오늘 것은 다 제자리를 찾았구나. 수고했다.',
+      '수고했다. 읽고 싶은 게 있으면 한 권쯤은 가져가도 좋아.',
+    ],
+  },
+  farm: {
+    npc: 'farmer',
+    lines: [
+      '오늘은 저 밭이다. 이랑 밟지 않게 조심하고!',
+      '해 있을 때 거둬야 해. 서두르자고.',
+    ],
+    farewells: [
+      '수고했다! 파 한 단 싸 줄 테니 가져가라.',
+      '오늘 몫은 다 했다. 내일도 이 시간에 보자.',
+    ],
+  },
+  ranch: {
+    npc: 'rancher',
+    lines: [
+      '큰 놈들은 겁을 주면 안 돼. 옆에서 천천히 걸어라.',
+      '먹이부터 주고 시작한다. 배부르면 순해지거든.',
+    ],
+    farewells: [
+      '오늘은 한 마리도 안 놓쳤군. 잘했다.',
+      '수고했다. 흙 털고 가라.',
+    ],
+  },
+  fishmarket: {
+    npc: 'fishmonger',
+    lines: [
+      '새벽 것이 제일 좋아. 얼음 떨어지기 전에 옮기자고!',
+      '무거운 건 나한테 줘. 대신 발밑이나 조심하고.',
+    ],
+    farewells: [
+      '오늘 다 팔았다! 수고했어.',
+      '수고했어. 손은 꼭 씻고 가라, 냄새 안 빠진다.',
     ],
   },
   mine: {

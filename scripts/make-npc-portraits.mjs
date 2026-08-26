@@ -38,6 +38,18 @@ const FACES = {
   nurse: { cx: 0.43, cy: 0.2, size: 0.5 },
   oldstory: { cx: 0.545, cy: 0.35, size: 0.45 },
   prof: { cx: 0.5125, cy: 0.4875, size: 0.55 },
+  // --- 수업과 일을 맡은 포켓몬들 (1세대) ---
+  butterfree: { cx: 0.43, cy: 0.445, size: 0.42 },
+  farfetchd: { cx: 0.42, cy: 0.31, size: 0.36 },
+  hypno: { cx: 0.37, cy: 0.36, size: 0.4 },
+  kingler: { cx: 0.446, cy: 0.57, size: 0.38 },
+  lapras: { cx: 0.4, cy: 0.17, size: 0.3 },
+  machamp: { cx: 0.56, cy: 0.38, size: 0.28 },
+  magmar: { cx: 0.524, cy: 0.305, size: 0.28 },
+  magneton: { cx: 0.48, cy: 0.48, size: 0.62 },
+  rhydon: { cx: 0.34, cy: 0.31, size: 0.33 },
+  slowbro: { cx: 0.31, cy: 0.24, size: 0.42 },
+  venusaur: { cx: 0.34, cy: 0.63, size: 0.5 },
   // --- 체육관에서 상대해 주는 포켓몬들 ---
   magikarp: { cx: 0.21, cy: 0.425, size: 0.48 },
   rattata: { cx: 0.35, cy: 0.47, size: 0.43 },
