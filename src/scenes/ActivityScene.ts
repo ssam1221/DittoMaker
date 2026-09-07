@@ -47,6 +47,9 @@ import { drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
  * 짜 놓은 한 달을 하루씩 치르는 화면입니다.
  *
  * 담당 포켓몬이 나와 인사를 건네면 1초에 하루씩 날이 흐릅니다.
+ * 누르고 있는 동안에는 두 배로 빨라집니다. 한 번 눌러 통째로
+ * 건너뛰면 그날그날 무슨 일이 있었는지가 지나가 버리므로,
+ * 지켜보되 빨리 감을 수 있게만 두었습니다.
  * 그날의 성과(상·중·하)에 따라 오르는 양과 문구가 달라지고,
  * 한 달이 끝나면 무엇이 얼마나 올랐는지 정리해 보여 준 뒤
  * 담당이 다시 나와 작별 인사를 합니다.
@@ -56,6 +59,9 @@ const DITTO_KEY = '0132-메타몽'
 
 /** 하루가 지나는 데 걸리는 시간 */
 const DAY_MS = 1000
+
+/** 누르고 있는 동안의 배속 */
+const FAST_SCALE = 2
 
 const DATE = { x: 20, y: 16, width: 290, height: 92 }
 const TITLE = { x: 322, y: 16, width: 306, height: 92 }
@@ -151,6 +157,8 @@ export class ActivityScene extends Phaser.Scene {
   private phase: Phase = 'greet'
   private talk?: NpcTalk
   private ticker?: Phaser.Time.TimerEvent
+  /** 지금 누르고 있어서 빨리 감는 중인지 */
+  private fast = false
   private summaryBox?: Phaser.GameObjects.Container
 
   private dateLine!: Phaser.GameObjects.Text
@@ -199,6 +207,7 @@ export class ActivityScene extends Phaser.Scene {
     this.phase = 'greet'
     this.talk = undefined
     this.ticker = undefined
+    this.fast = false
     this.summaryBox = undefined
     this.gaugeLabels = []
     this.gaugeValues = []
@@ -524,7 +533,7 @@ export class ActivityScene extends Phaser.Scene {
 
     this.phase = 'days'
     this.index = range.from
-    this.hint.setText('Enter · 클릭 : 건너뛰기')
+    this.hint.setText('누르고 있으면 2배속   ·   Enter 건너뛰기')
 
     this.showDay(first)
 
@@ -533,6 +542,21 @@ export class ActivityScene extends Phaser.Scene {
       loop: true,
       callback: () => this.nextDay(),
     })
+    // 이미 누르고 있는 채로 다음 칸에 들어왔으면 그대로 빨리 감습니다.
+    this.ticker.timeScale = this.fast ? FAST_SCALE : 1
+  }
+
+  /**
+   * 누르고 있는 동안 두 배로 감습니다.
+   *
+   * 타이머를 다시 만들지 않고 timeScale 만 바꾸는 것은, 새로 만들면
+   * 흘러가던 하루가 처음부터 다시 세어져 화면이 한 번 멈칫하기 때문입니다.
+   */
+  private setFast(fast: boolean): void {
+    if (this.fast === fast) return
+
+    this.fast = fast
+    if (this.ticker) this.ticker.timeScale = fast ? FAST_SCALE : 1
   }
 
   private nextDay(): void {
@@ -566,6 +590,7 @@ export class ActivityScene extends Phaser.Scene {
   private finishDays(): void {
     this.ticker?.remove()
     this.ticker = undefined
+    this.fast = false
     this.hint.setText('')
     this.showSummary()
   }
@@ -936,8 +961,21 @@ export class ActivityScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_DOWN, () => {
       // 대화창이 떠 있으면 그쪽이 클릭을 가져갑니다.
       if (this.talk) return
+
+      // 날이 흐르는 중에는 누르고 있는 동안만 빨라집니다.
+      if (this.phase === 'days') {
+        this.setFast(true)
+        return
+      }
+
       this.advance()
     })
+
+    // 손을 떼면 (화면 밖에서 떼도) 다시 제 속도로 돌아옵니다.
+    const slow = (): void => this.setFast(false)
+    this.input.on(Phaser.Input.Events.POINTER_UP, slow)
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, slow)
+    this.input.on(Phaser.Input.Events.GAME_OUT, slow)
   }
 
   private advance(): void {
