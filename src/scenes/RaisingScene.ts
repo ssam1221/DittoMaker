@@ -9,6 +9,7 @@ import {
   type ActivityKind,
 } from '../activities'
 import { playBgm } from '../audio/bgm'
+import { cryPath } from '../audio/sfx'
 import { AudioKey, FontFamily, GAME_HEIGHT, GAME_WIDTH, MusicFile, SceneKey } from '../constants'
 import {
   ageInMonths,
@@ -17,6 +18,7 @@ import {
   ensureRaisingState,
   PERIOD_LABELS,
   PERIODS_PER_MONTH,
+  rollMerchant,
   SEASON_LABELS,
   seasonOf,
   STAT_LABELS,
@@ -25,9 +27,13 @@ import {
   TYPES,
   type RaisingState,
 } from '../raising'
+import { GOODS, goodsIconKey, knock, MERCHANT } from '../merchant'
+import { npcArtKey, npcCryKey, npcPortraitKey } from '../npc'
 import { writeSlot, type SaveData } from '../save'
 import { replyTo, TALK_TONES, type TalkTone } from '../talk'
 import { ChoiceBox } from '../ui/choiceBox'
+import { MerchantBox } from '../ui/merchantBox'
+import { NpcTalk } from '../ui/npcTalk'
 import { addChoice, drawParchmentFrame, GOLD, GOLD_LIGHT } from '../ui/panel'
 import {
   SchedulePopup,
@@ -107,6 +113,10 @@ export class RaisingScene extends Phaser.Scene {
   private popup?: SchedulePopup
   /** 말 거는 창 */
   private talk?: ChoiceBox
+  /** 비밀 상인이 건네는 말 */
+  private knockTalk?: NpcTalk
+  /** 비밀 상인의 좌판 */
+  private merchant?: MerchantBox
   /** 메타몽의 반응이 떠 있는 띠 */
   private reply?: Phaser.GameObjects.Container
   /** 다른 화면에서 돌아오며 들고 온 안내 */
@@ -124,7 +134,8 @@ export class RaisingScene extends Phaser.Scene {
 
   init(data: SaveData & { notice?: string }): void {
     this.save = data
-    this.state = ensureRaisingState(data.raising)
+    // 달이 바뀌었으면 비밀 상인이 들렀는지 여기서 한 번 정합니다.
+    this.state = rollMerchant(ensureRaisingState(data.raising))
     // 수업을 마치고 돌아왔다면 그 결과를 한 번 띄웁니다.
     this.pendingNotice = data.notice
   }
@@ -132,6 +143,18 @@ export class RaisingScene extends Phaser.Scene {
   preload(): void {
     this.load.image(DITTO_KEY, `assets/pokemon/artwork/${DITTO_KEY}.png`)
     this.load.audio(AudioKey.Town, `music/${encodeURIComponent(MusicFile.Town)}`)
+
+    // 비밀 상인은 안 올 때가 더 많지만, 왔을 때 기다리게 할 수는 없습니다.
+    this.load.image(npcArtKey(MERCHANT.key), `assets/pokemon/npc/${MERCHANT.key}.png`)
+    this.load.image(
+      npcPortraitKey(MERCHANT.key),
+      `assets/pokemon/portrait/npc/${MERCHANT.key}.png`,
+    )
+    this.load.audio(npcCryKey(MERCHANT.key), cryPath(MERCHANT.cry))
+
+    for (const goods of GOODS) {
+      this.load.image(goodsIconKey(goods.key), `assets/items/${goods.key}.png`)
+    }
   }
 
   create(): void {
@@ -149,6 +172,8 @@ export class RaisingScene extends Phaser.Scene {
     // 창을 띄운 채 화면을 벗어났다면 그 흔적이 남아 조작이 잠깁니다.
     this.popup = undefined
     this.talk = undefined
+    this.knockTalk = undefined
+    this.merchant = undefined
     this.reply = undefined
 
     playBgm(this, AudioKey.Town)
@@ -566,6 +591,11 @@ export class RaisingScene extends Phaser.Scene {
       { label: '저장', run: () => this.doSave() },
     ]
 
+    // 비밀 상인이 와 있는 달에만 자리가 하나 더 생깁니다.
+    if (this.state.merchantHere) {
+      this.commands.push({ label: '손님', run: () => this.greetMerchant() })
+    }
+
     const span = GAME_WIDTH - 120
     this.commands.forEach((command, index) => {
       const x = 60 + (span / (this.commands.length - 1)) * index
@@ -611,17 +641,21 @@ export class RaisingScene extends Phaser.Scene {
     const keyboard = this.input.keyboard!
 
     // 창이 떠 있으면 그쪽이 키를 가져갑니다.
-    keyboard.on('keydown-UP', () => this.openWindow()?.move(-1))
-    keyboard.on('keydown-DOWN', () => this.openWindow()?.move(1))
-
-    keyboard.on('keydown-LEFT', () => {
-      if (!this.openWindow()) this.move(-1)
-    })
-    keyboard.on('keydown-RIGHT', () => {
-      if (!this.openWindow()) this.move(1)
-    })
+    keyboard.on('keydown-UP', () => this.steer('up'))
+    keyboard.on('keydown-DOWN', () => this.steer('down'))
+    keyboard.on('keydown-LEFT', () => this.steer('left'))
+    keyboard.on('keydown-RIGHT', () => this.steer('right'))
 
     const activate = (): void => {
+      if (this.knockTalk) {
+        this.knockTalk.submit()
+        return
+      }
+      if (this.merchant) {
+        this.merchant.submit()
+        return
+      }
+
       const open = this.openWindow()
       if (open) {
         open.submit()
@@ -633,6 +667,15 @@ export class RaisingScene extends Phaser.Scene {
     keyboard.on('keydown-SPACE', activate)
 
     keyboard.on('keydown-ESC', () => {
+      if (this.knockTalk) {
+        this.knockTalk.cancel()
+        return
+      }
+      if (this.merchant) {
+        this.merchant.cancel()
+        return
+      }
+
       const open = this.openWindow()
       if (open) {
         open.cancel()
@@ -652,6 +695,60 @@ export class RaisingScene extends Phaser.Scene {
   /** 지금 열려 있는 창. 둘은 동시에 뜨지 않습니다. */
   private openWindow(): SchedulePopup | ChoiceBox | undefined {
     return this.popup ?? this.talk
+  }
+
+  /**
+   * 방향키 하나를 지금 열려 있는 것에 맞게 흘려보냅니다.
+   *
+   * 좌판만 두 축을 쓰는 격자라, 위아래만 쓰는 다른 창들과 나눠 받습니다.
+   */
+  private steer(direction: 'up' | 'down' | 'left' | 'right'): void {
+    if (this.knockTalk) return
+
+    if (this.merchant) {
+      if (direction === 'left') this.merchant.move(-1, 'x')
+      if (direction === 'right') this.merchant.move(1, 'x')
+      if (direction === 'up') this.merchant.move(-1, 'y')
+      if (direction === 'down') this.merchant.move(1, 'y')
+      return
+    }
+
+    const open = this.openWindow()
+    if (open) {
+      if (direction === 'up') open.move(-1)
+      if (direction === 'down') open.move(1)
+      return
+    }
+
+    if (direction === 'left') this.move(-1)
+    if (direction === 'right') this.move(1)
+  }
+
+  /**
+   * 비밀 상인이 문을 두드립니다. 한마디 건넨 뒤 좌판을 펼칩니다.
+   * 이 달 안에는 몇 번이고 다시 부를 수 있습니다.
+   */
+  private greetMerchant(): void {
+    if (this.knockTalk || this.merchant) return
+
+    this.knockTalk = new NpcTalk(this, [{ npc: MERCHANT, line: knock() }], () => {
+      this.knockTalk = undefined
+      this.openStall()
+    })
+  }
+
+  private openStall(): void {
+    this.merchant = new MerchantBox(this, {
+      name: this.save.dittoName,
+      state: this.state,
+      onBuy: (state) => {
+        this.state = state
+        this.refresh()
+      },
+      onCancel: () => {
+        this.merchant = undefined
+      },
+    })
   }
 
   private move(delta: number): void {

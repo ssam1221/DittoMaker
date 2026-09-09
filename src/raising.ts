@@ -92,6 +92,13 @@ export interface RaisingState {
    * 있으므로 그 달을 적어 둡니다. -1 이면 아직 간 적이 없습니다.
    */
   centreMonth: number
+  /**
+   * 비밀 상인을 두고 마지막으로 주사위를 굴린 달. 한 달에 한 번만
+   * 굴리고 그 결과를 세이브에 남겨, 화면을 드나들어도 바뀌지 않게 합니다.
+   */
+  merchantRolled: number
+  /** 이번 달에 들렀는지 */
+  merchantHere: boolean
 }
 
 /**
@@ -132,6 +139,8 @@ export function createRaisingState(): RaisingState {
     condition: 80,
     stress: 0,
     centreMonth: -1,
+    merchantRolled: -1,
+    merchantHere: false,
   }
 }
 
@@ -150,6 +159,8 @@ export function ensureRaisingState(state: RaisingState | undefined): RaisingStat
     ...state,
     period: state.period ?? legacy ?? 0,
     centreMonth: state.centreMonth ?? -1,
+    merchantRolled: state.merchantRolled ?? -1,
+    merchantHere: state.merchantHere ?? false,
     plan: state.plan ?? [],
     stats: { ...base.stats, ...state.stats },
     // 타입이 나중에 늘어나도 빠진 칸이 생기지 않게 합칩니다.
@@ -269,5 +280,25 @@ export function centreRest(state: RaisingState): RaisingState {
     // 반올림하면 1 이 남아 다음 달에 또 오게 되므로 버립니다.
     stress: Math.floor(state.stress / 2),
     centreMonth: monthIndex(state.period),
+  }
+}
+
+/** 비밀 상인이 한 달에 들를 확률 */
+const MERCHANT_CHANCE = 0.25
+
+/**
+ * 이번 달에 비밀 상인이 들렀는지 정합니다.
+ *
+ * 달마다 한 번만 굴리고 결과를 남깁니다. 화면에 들어올 때마다 굴리면
+ * 방과 마을을 오가는 것만으로 상인을 불러낼 수 있게 되기 때문입니다.
+ */
+export function rollMerchant(state: RaisingState): RaisingState {
+  const month = monthIndex(state.period)
+  if (state.merchantRolled === month) return state
+
+  return {
+    ...state,
+    merchantRolled: month,
+    merchantHere: Math.random() < MERCHANT_CHANCE,
   }
 }

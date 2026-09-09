@@ -38,6 +38,9 @@ const FACES = {
   nurse: { cx: 0.43, cy: 0.2, size: 0.5 },
   oldstory: { cx: 0.545, cy: 0.35, size: 0.45 },
   prof: { cx: 0.5125, cy: 0.4875, size: 0.55 },
+  // --- 어쩌다 들르는 비밀 상인 ---
+  drowzee: { cx: 0.42, cy: 0.17, size: 0.44 },
+
   // --- 수업과 일을 맡은 포켓몬들 (1세대) ---
   butterfree: { cx: 0.43, cy: 0.445, size: 0.42 },
   farfetchd: { cx: 0.42, cy: 0.31, size: 0.36 },

@@ -1,5 +1,5 @@
 /**
- * 프렌들리숍에 놓을 열매 아이콘을 내려받습니다.
+ * 상점에 놓을 아이템 아이콘을 내려받습니다.
  *
  *   node scripts/fetch-berries.mjs
  *
@@ -29,6 +29,23 @@ const BERRIES = {
   salac: 'salac-berry',
   sitrus: 'sitrus-berry',
   starf: 'starf-berry',
+
+  // 비밀 상인이 파는 것들
+  xattack: 'x-attack',
+  xdefense: 'x-defense',
+  xspatk: 'x-sp-atk',
+  xspdef: 'x-sp-def',
+  xspeed: 'x-speed',
+  xaccuracy: 'x-accuracy',
+  direhit: 'dire-hit',
+  firestone: 'fire-stone',
+  waterstone: 'water-stone',
+  thunderstone: 'thunder-stone',
+  leafstone: 'leaf-stone',
+  moonstone: 'moon-stone',
+  slowpoketail: 'slowpoke-tail',
+  // 풍유환은 포켓몬에 없는 물건이라, 둥글고 향이 날 것 같은 향로를 빌려 씁니다.
+  fullincense: 'full-incense',
 }
 
 const SCALE = 4
@@ -56,7 +73,7 @@ for (const [key, file] of Object.entries(BERRIES)) {
   }
 }
 
-console.log(`\n열매 아이콘 ${Object.keys(BERRIES).length - failures.length}개`)
+console.log(`\n아이템 아이콘 ${Object.keys(BERRIES).length - failures.length}개`)
 if (failures.length) {
   console.log('실패:')
   for (const f of failures) console.log(`  ${f}`)
