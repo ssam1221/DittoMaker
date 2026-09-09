@@ -192,6 +192,12 @@ export class RaisingScene extends Phaser.Scene {
       this.showNotice(this.pendingNotice)
       this.pendingNotice = undefined
     }
+
+    // 비밀 상인은 부르는 것이 아니라 제 발로 찾아옵니다.
+    // 방이 한 번 보이고 나서 문을 두드리도록 잠깐 둡니다.
+    if (this.state.merchantHere) {
+      this.time.delayedCall(600, () => this.greetMerchant())
+    }
   }
 
   // --- 화면 만들기 ---
@@ -591,11 +597,6 @@ export class RaisingScene extends Phaser.Scene {
       { label: '저장', run: () => this.doSave() },
     ]
 
-    // 비밀 상인이 와 있는 달에만 자리가 하나 더 생깁니다.
-    if (this.state.merchantHere) {
-      this.commands.push({ label: '손님', run: () => this.greetMerchant() })
-    }
-
     const span = GAME_WIDTH - 120
     this.commands.forEach((command, index) => {
       const x = 60 + (span / (this.commands.length - 1)) * index
@@ -726,10 +727,10 @@ export class RaisingScene extends Phaser.Scene {
 
   /**
    * 비밀 상인이 문을 두드립니다. 한마디 건넨 뒤 좌판을 펼칩니다.
-   * 이 달 안에는 몇 번이고 다시 부를 수 있습니다.
+   * 좌판을 닫으면 그대로 떠나므로, 그 달에 다시 만날 수는 없습니다.
    */
   private greetMerchant(): void {
-    if (this.knockTalk || this.merchant) return
+    if (this.knockTalk || this.merchant || this.popup || this.talk) return
 
     this.knockTalk = new NpcTalk(this, [{ npc: MERCHANT, line: knock() }], () => {
       this.knockTalk = undefined
@@ -747,6 +748,8 @@ export class RaisingScene extends Phaser.Scene {
       },
       onCancel: () => {
         this.merchant = undefined
+        // 볼일이 끝났으니 짐을 싸서 갑니다. 마을에 다녀와도 다시 오지 않습니다.
+        this.state = { ...this.state, merchantHere: false }
       },
     })
   }
