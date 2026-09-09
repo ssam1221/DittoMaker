@@ -44,6 +44,9 @@ import { drawWindowView } from '../ui/window'
 
 const DITTO_KEY = '0132-메타몽'
 
+/** 비밀 상인을 불러내는 뒷문. 만드는 동안 기다리지 않으려고 둡니다. */
+const DEBUG_SUMMON = '123'
+
 /** 위쪽 날짜·소지금 띠 */
 const HEADER = { x: 20, y: 16, width: GAME_WIDTH - 40, height: 36 }
 
@@ -145,12 +148,19 @@ export class RaisingScene extends Phaser.Scene {
     this.load.audio(AudioKey.Town, `music/${encodeURIComponent(MusicFile.Town)}`)
 
     // 비밀 상인은 안 올 때가 더 많지만, 왔을 때 기다리게 할 수는 없습니다.
-    this.load.image(npcArtKey(MERCHANT.key), `assets/pokemon/npc/${MERCHANT.key}.png`)
-    this.load.image(
-      npcPortraitKey(MERCHANT.key),
-      `assets/pokemon/portrait/npc/${MERCHANT.key}.png`,
-    )
-    this.load.audio(npcCryKey(MERCHANT.key), cryPath(MERCHANT.cry))
+    // 슬리퍼는 문학 선생이기도 해서 수업 화면이 이미 받아 두었을 수 있습니다.
+    if (!this.textures.exists(npcArtKey(MERCHANT.key))) {
+      this.load.image(npcArtKey(MERCHANT.key), `assets/pokemon/npc/${MERCHANT.key}.png`)
+      this.load.image(
+        npcPortraitKey(MERCHANT.key),
+        `assets/pokemon/portrait/npc/${MERCHANT.key}.png`,
+      )
+    }
+    if (!this.cache.audio.exists(npcCryKey(MERCHANT.key))) {
+      this.load.audio(npcCryKey(MERCHANT.key), cryPath(MERCHANT.cry))
+    }
+
+    this.load.audio(AudioKey.Merchant, `music/${encodeURIComponent(MusicFile.Merchant)}`)
 
     for (const goods of GOODS) {
       this.load.image(goodsIconKey(goods.key), `assets/items/${goods.key}.png`)
@@ -685,6 +695,22 @@ export class RaisingScene extends Phaser.Scene {
       this.scene.start(SceneKey.Menu)
     })
 
+    // 만드는 동안 상인을 기다리지 않으려고 둔 뒷문입니다. 숫자 123.
+    let typed = ''
+    keyboard.on('keydown', (event: KeyboardEvent) => {
+      if (!/^[0-9]$/.test(event.key)) {
+        typed = ''
+        return
+      }
+
+      typed = (typed + event.key).slice(-DEBUG_SUMMON.length)
+      if (typed !== DEBUG_SUMMON) return
+
+      typed = ''
+      this.state = { ...this.state, merchantHere: true }
+      this.greetMerchant()
+    })
+
     // 오른쪽 판을 능력치 / 타입 사이에서 넘깁니다.
     keyboard.on('keydown-TAB', (event: KeyboardEvent) => {
       event.preventDefault()
@@ -732,6 +758,9 @@ export class RaisingScene extends Phaser.Scene {
   private greetMerchant(): void {
     if (this.knockTalk || this.merchant || this.popup || this.talk) return
 
+    // 저 혼자 다른 곡을 끌고 옵니다. 좌판을 닫으면 방의 곡으로 돌아옵니다.
+    playBgm(this, AudioKey.Merchant)
+
     this.knockTalk = new NpcTalk(this, [{ npc: MERCHANT, line: knock() }], () => {
       this.knockTalk = undefined
       this.openStall()
@@ -750,6 +779,7 @@ export class RaisingScene extends Phaser.Scene {
         this.merchant = undefined
         // 볼일이 끝났으니 짐을 싸서 갑니다. 마을에 다녀와도 다시 오지 않습니다.
         this.state = { ...this.state, merchantHere: false }
+        playBgm(this, AudioKey.Town)
       },
     })
   }

@@ -16,10 +16,10 @@ import { withJosa } from './ui/hangul'
  */
 
 export const MERCHANT: Npc = {
-  key: 'drowzee',
-  name: '슬리프',
+  key: 'hypno',
+  name: '슬리퍼',
   role: '떠돌이 장수',
-  cry: '0096-슬리프',
+  cry: '0097-슬리퍼',
 }
 
 export interface Goods {
@@ -147,7 +147,8 @@ export const GOODS: readonly Goods[] = [
     key: 'fullincense',
     name: '풍유환',
     price: 12000,
-    effect: '체력 +15',
+    // 무엇에 쓰는 물건인지는 사 봐야 압니다. 값을 생각하면 배짱이지요.
+    effect: '????',
     patter: '먼 나라에서 가져온 진귀한 물건이라네. 몸이 한 뼘 부푼다지.',
     stat: { key: 'hp', amount: 15 },
   },
